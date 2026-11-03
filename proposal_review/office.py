@@ -5,6 +5,7 @@ import re
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 from xml.dom import Node, minidom
 from xml.parsers.expat import ExpatError
 
@@ -23,6 +24,16 @@ WORD = (r'word/(?:document|settings|styles|stylesWithEffects|numbering|fontTable
         r'word/_rels/(?:document|header\d+|footer\d+|footnotes|endnotes)\.xml\.rels')
 OFFICE_TYPES = {'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
                 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'}
+# Restrict custom formats to ordinary budget amounts. Other masks can display an
+# identifier assembled from digits and literals that never appear together in XML.
+BUDGET_FORMAT = re.compile(r'(?:[$€£]|"[$€£]")?(?:#,##0|0)(?:\.0{1,6})?%?')
+BUILTIN_FORMAT_IDS = {str(i) for i in (*range(23), *range(37, 50))}
+# These display dates, times, fractions or exponents. Excel's locale and
+# calendar settings can change the result independently of the stored number.
+UNMODELLED_FORMAT_IDS = {str(i) for i in (*range(11, 23), *range(45, 49))}
+CELL_REF = r'\$?[A-Za-z]{1,3}\$?[1-9][0-9]{0,6}'
+LOCAL_RANGE = re.compile(rf'{CELL_REF}(?::{CELL_REF})?')
+SHEET_REF = re.compile(r"""(?:[A-Za-z_][\w.]*|'(?:[^'\[\]:*?/\\\x00-\x1f]|'')+')""")
 # These features can contain independent renderings, hidden text, or identifiers
 # assembled at display time. Never silently flatten them.
 UNSUPPORTED = set(('AlternateContent altChunk drawing pict object fldSimple fldChar instrText '
@@ -59,6 +70,7 @@ class Field:
     location: str
     nodes: list
     editable: bool = True
+    numeric: bool = False
 
     @property
     def value(self):
@@ -139,6 +151,51 @@ class OfficeFile:
     def stop(self, reason):
         raise Blocked(f'{self.label}: {reason}')
 
+    def _check_excel_features(self, sheet_names):
+        custom_ids = set()
+        self.unmodelled_format = None
+        self.has_percentage_format = False
+        self.uncached_formatted_formula = None
+        styles = self.roots.get('xl/styles.xml')
+        if styles:
+            for fmt in elements(styles, S, 'numFmt'):
+                identifier = fmt.getAttribute('numFmtId')
+                if (not re.fullmatch(r'[0-9]{1,5}', identifier) or
+                        not BUDGET_FORMAT.fullmatch(fmt.getAttribute('formatCode'))):
+                    self.stop('xl/styles.xml — unsupported custom number format; use a safe source copy')
+                custom_ids.add(identifier)
+                if identifier in UNMODELLED_FORMAT_IDS:
+                    self.unmodelled_format = identifier
+                self.has_percentage_format |= (identifier in ('9', '10') or
+                                               fmt.getAttribute('formatCode').endswith('%'))
+            for xf in elements(styles, S, 'xf'):
+                identifier = xf.getAttribute('numFmtId') or '0'
+                if identifier not in BUILTIN_FORMAT_IDS and identifier not in custom_ids:
+                    self.stop('xl/styles.xml — unknown number format')
+                if identifier in UNMODELLED_FORMAT_IDS:
+                    self.unmodelled_format = identifier
+                self.has_percentage_format |= identifier in ('9', '10')
+
+        for part, doc in self.roots.items():
+            for el in doc.getElementsByTagName('*'):
+                tag = el.localName
+                if tag in ('xf', 'numFmt') and (part != 'xl/styles.xml' or el.namespaceURI != S):
+                    self.stop(part + ' — unexpected number-format definition')
+                if tag == 'definedName':
+                    expression = ''.join(n.data for n in children_text(el))
+                    sheet, sep, address = expression.rpartition('!')
+                    local_sheet = sheet[1:-1].replace("''", "'") if sheet.startswith("'") else sheet
+                    if (el.namespaceURI != S or
+                            len(el.childNodes) != len(children_text(el)) or
+                            (sep and (not SHEET_REF.fullmatch(sheet) or local_sheet.casefold() not in sheet_names)) or
+                            not LOCAL_RANGE.fullmatch(address) or
+                            any(el.hasAttribute(flag) for flag in
+                                ('function', 'vbProcedure', 'xlm', 'functionGroupId', 'shortcutKey'))):
+                        self.stop(part + ' — defined name must be a plain local cell or range')
+                if (tag in ('formula', 'formula1', 'formula2') or
+                        (tag == 'cfvo' and el.getAttribute('type') == 'formula')):
+                    self.stop(part + ' — validation or conditional-format formula requires source cleanup')
+
     def _check_bibliography(self, name, doc):
         bib = 'http://schemas.openxmlformats.org/officeDocument/2006/bibliography'
         store = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml'
@@ -204,6 +261,8 @@ class OfficeFile:
         sheet_names = {}
         if self.kind == 'xlsx':
             book = 'xl/workbook.xml'
+            self._check_excel_features({sh.getAttribute('name').casefold()
+                                        for sh in elements(self.roots[book], S, 'sheet')})
             for sh in elements(self.roots[book], S, 'sheet'):
                 path = self.links.get(book, {}).get(sh.getAttributeNS(R, 'id'))
                 if path is None or not re.fullmatch(r'xl/worksheets/sheet\d+\.xml', path):
@@ -213,6 +272,9 @@ class OfficeFile:
                 sheet_names[path] = label + (f' ({state})' if state and state != 'visible' else '')
                 self.fields.append((book, Field('Sheet name', [sh.getAttributeNode('name')], False)))
         for part, title in sheet_names.items():
+            # Column and conditional formats can apply without an explicit cell style.
+            inherited_style = (any(col.hasAttribute('style') for col in elements(self.roots[part], S, 'col'))
+                               or bool(elements(self.roots[part], S, 'conditionalFormatting')))
             for cell in elements(self.roots[part], S, 'c'):
                 loc = f'{title}!{cell.getAttribute("r")}'
                 kind = cell.getAttribute('t')
@@ -228,6 +290,9 @@ class OfficeFile:
                         self.stop(loc + ' formula — unsupported expression or dynamic content')
                     self.add(part, loc+' formula', children_text(f), False)
                 vals = elements(cell, S, 'v')
+                if (formulas and (cell.hasAttribute('s') or cell.parentNode.hasAttribute('s') or inherited_style)
+                        and not any(children_text(v) for v in vals)):
+                    self.uncached_formatted_formula = loc
                 if kind == 's':
                     index = ''.join(n.data for n in children_text(vals[0])) if len(vals) == 1 else ''
                     if not re.fullmatch(r'0|[1-9][0-9]{0,8}', index):
@@ -237,7 +302,7 @@ class OfficeFile:
                     self.rich(part, loc, cell, S)
                 else:
                     for v in vals:
-                        self.add(part, loc, children_text(v), False)
+                        self.add(part, loc, children_text(v), False, numeric=kind in ('', 'n'))
         if shared:
             strings = self.roots.get('xl/sharedStrings.xml')
             size = len(elements(strings, S, 'si')) if strings else 0
@@ -295,9 +360,68 @@ class OfficeFile:
         # A match in a paragraph with layout controls needs human source cleanup.
         self.add(part, location, nodes, not has_separator)
 
-    def add(self, part, location, nodes, editable=True):
+    def add(self, part, location, nodes, editable=True, numeric=False):
         if nodes and any(n.nodeValue.strip() for n in nodes):
-            self.fields.append((part, Field(location, nodes, editable)))
+            self.fields.append((part, Field(location, nodes, editable, numeric)))
+
+    def check_numeric_identifiers(self, rules):
+        # The same identifier may appear once as text and elsewhere as a number.
+        # Compare every numeric cell, including hidden sheets and formula caches.
+        keys = set()
+        for term, _ in rules:
+            if re.fullmatch(r'\s*[+-]?\d+(?:[.,]\d+)?[Ee][+-]?\d+\s*', term):
+                if any(field.numeric for _, field in self.fields):
+                    self.stop('scientific-notation identifier cannot be verified against Excel display precision')
+            # Account for month words and AM/PM when recognizing date/time rules.
+            number_text = re.sub(r'\b(?:Jan\w*|Feb\w*|Mar\w*|Apr\w*|May|Jun\w*|Jul\w*|Aug\w*|'
+                                 r'Sep\w*|Oct\w*|Nov\w*|Dec\w*|AM|PM)\b', '', term, flags=re.I)
+            if re.fullmatch(r'[0-9\s()+.,:/%$€£‐‑‒–—−-]+', number_text):
+                digits = re.sub(r'[^0-9]', '', term)
+                if digits:
+                    if self.unmodelled_format:
+                        self.stop('xl/styles.xml — cannot verify selected numeric identifiers against date, time, '
+                                  'fraction, or scientific number formats; prepare a safe source copy')
+                    keys.add(digits.lstrip('0') or '0')
+                    fraction = re.search(r'[.,]([0-9]{1,6})\s*[%$€£]?\s*$', term)
+                    if fraction:
+                        padding = len(fraction[1]) - len(fraction[1].rstrip('0'))
+                        if padding:
+                            keys.add(digits[:-padding].lstrip('0') or '0')
+        if not keys:
+            return
+        for _, field in self.fields:
+            if not field.numeric:
+                continue
+            raw = field.value.strip()
+            # Excel stores finite double-precision values. Bound expansion of
+            # scientific notation before constructing its displayed digits.
+            try:
+                if len(raw) > 128:
+                    raise InvalidOperation
+                value = Decimal(raw)
+                if not value.is_finite() or abs(value.as_tuple().exponent) > 400:
+                    raise InvalidOperation
+            except InvalidOperation:
+                self.stop(field.location + ' — unsupported numeric value')
+            # Number formats can come from a cell, row, column or conditional
+            # style. Compare a superset of the supported rounded presentations.
+            # General also rounds according to the available column width.
+            with localcontext() as context:
+                context.rounding = ROUND_HALF_UP
+                context.prec = 150
+                value = value.copy_abs()
+                values = [value, value * 100] if self.has_percentage_format else [value]
+                for number in values:
+                    fraction_places = max(0, -number.as_tuple().exponent)
+                    precisions = range(min(15, fraction_places) + 1)
+                    displays = [format(number, 'f'), *(format(number, f'.{n}f') for n in precisions)]
+                    for display in displays:
+                        if '.' in display:
+                            display = display.rstrip('0').rstrip('.')
+                        if (display.replace('.', '').lstrip('0') or '0') in keys:
+                            self.stop(field.location + ' — selected identifier matches a protected numeric value; prepare a safe source copy')
+        if self.uncached_formatted_formula:
+            self.stop(self.uncached_formatted_formula + ' — formatted formula has no cached value for checking the numeric identifier')
 
     def write(self):
         buffer = io.BytesIO()

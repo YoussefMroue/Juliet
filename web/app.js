@@ -7,6 +7,8 @@ const previewUrls=[];
 function discardPreview(){
   output=null;
   $('approved').checked=false;
+  $('privateBackup').open=false;
+  $('includeOriginals').checked=false;
   $('preview').hidden=true;
   $('pages').replaceChildren();
   previewUrls.splice(0).forEach(URL.revokeObjectURL);
@@ -87,9 +89,25 @@ $('inspect').onclick=task($('inspect'),async()=>{
   $('changes').textContent=edits.length?edits.map(([f,loc,old,v])=>f+' · '+loc+'\n'+old+' → '+v).join('\n\n'):'No replacements selected.';
   $('preview').hidden=false;status('Inspect both copies before saving.');$('preview').scrollIntoView();
 });
-$('save').onclick=task($('save'),async()=>{
+function downloadZip(files,filename){
+  const data=call('archive_round',new Map(Object.entries(files)));
+  const url=URL.createObjectURL(new Blob([data],{type:'application/zip'}));
+  const link=document.createElement('a');
+  link.href=url;link.download=filename;
+  try{link.click();}finally{setTimeout(()=>URL.revokeObjectURL(url),60000);}
+}
+function requireApproval(){
   if(!output || !$('approved').checked)throw Error('Inspect both copies and select the approval box.');
-  await navigator.locks.request('proposal-round-'+inputs.id,async()=>{
+}
+$('save').onclick=task($('save'),()=>{
+  requireApproval();
+  downloadZip({'Budget.xlsx':output.b,['Justification.'+inputs.kind]:output.j},'Approved-files.zip');
+  status('Approved files download started. Open both files before handoff.');
+});
+$('backup').onclick=task($('backup'),async()=>{
+  await navigator.locks.request('proposal-round-'+inputs.id,()=>{
+    requireApproval();
+    if(!$('includeOriginals').checked)throw Error('Confirm that the private backup will include both originals.');
     const key='proposal-review:last-round:'+inputs.id;
     const previous=Number(localStorage.getItem(key)||0);
     const number=Number($('round').value)||previous+1;
@@ -103,12 +121,10 @@ $('save').onclick=task($('save'),async()=>{
     files[prefix+'02 Guidance/']='';
     files[prefix+'Review record.txt']=[inputs.id,name,new Date().toISOString(),inputs.budgetName,inputs.justName,'03 Redacted contains the approved copies.'].join('\n');
     for(const [title,text] of Object.entries(kit))files[prefix+'04 Review/'+title]=text;
-    const map=new Map(Object.entries(files));
-    const data=call('archive_round',map);
-    const url=URL.createObjectURL(new Blob([data],{type:'application/zip'}));
-    const link=document.createElement('a');link.href=url;link.download=inputs.id+'-'+name+'.zip';
-    localStorage.setItem(key,String(number));link.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-    status(name+' download started. Extract the folder locally. Only 03 Redacted is for handoff.');
+    downloadZip(files,'Private-'+inputs.id+'-'+name+'.zip');
+    localStorage.setItem(key,String(number));
+    $('includeOriginals').checked=false;
+    status('Private '+name+' backup download started. Store it in the restricted proposal folder.');
   });
 });
 try{

@@ -78,6 +78,39 @@ class PdfPilot(unittest.TestCase):
                 with self.assertRaises(Blocked):
                     PdfFile(doc.tobytes())
 
+    def test_drawn_identifier_blocks_entire_pdf(self):
+        for filled in (True, False):
+            with self.subTest(filled=filled), pdf.open() as doc:
+                page = doc.new_page(width=400, height=250)
+                page.insert_text((20, 35), 'Personnel ID:')
+                for x in (20, 55, 90, 125):
+                    if filled:
+                        page.draw_rect(pdf.Rect(x, 60, x+22, 65), color=None, fill=(0, 0, 0))
+                        page.draw_rect(pdf.Rect(x+17, 60, x+22, 95), color=None, fill=(0, 0, 0))
+                    else:
+                        page.draw_line((x, 60), (x, 95))
+                self.assertEqual(page.get_text().strip(), 'Personnel ID:')
+                with self.assertRaisesRegex(Blocked, 'drawing|graphic'):
+                    PdfFile(doc.tobytes())
+
+    def test_selectable_id_alongside_standard_font_text_art_blocks(self):
+        with pdf.open() as doc:
+            page = doc.new_page(width=400, height=250)
+            page.insert_text((20, 35), 'Personnel ID: 7777', fontname='cour')
+            rows = ['##### ##### ##### #####', '    #     #     #     #',
+                    '   #     #     #     #', '  #     #     #     #']
+            for i, row in enumerate(rows):
+                page.insert_text((20, 60+i*10), row, fontname='cour', fontsize=10)
+            with self.assertRaisesRegex(Blocked, 'text artwork'):
+                PdfFile(doc.tobytes())
+
+    def test_untrusted_font_mapping_blocks_before_review(self):
+        with pdf.open(self.pdf) as doc:
+            font = doc[0].get_fonts()[0][0]
+            doc.xref_set_key(font, 'Encoding', '<</Type/Encoding/Differences[65/seven]>>')
+            with self.assertRaisesRegex(Blocked, 'font'):
+                PdfFile(doc.tobytes())
+
     def test_wrapped_identifier_blocks(self):
         with pdf.open() as doc:
             page = doc.new_page()

@@ -9,6 +9,8 @@ from zipfile import ZipFile
 from docx import Document
 from openpyxl import load_workbook
 from openpyxl.comments import Comment
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.workbook.defined_name import DefinedName
 
 from proposal_review.case import Case, candidate_terms, export_pair
 from proposal_review.office import Blocked, OfficeFile
@@ -91,6 +93,104 @@ class PilotTests(unittest.TestCase):
         book.save(self.xlsx)
         with self.assertRaisesRegex(Blocked, 'Sheet name'):
             self.load().inspect(RULES)
+
+    def test_formatted_numeric_ids_never_reach_export(self):
+        book = load_workbook(self.xlsx)
+        cell = book['Details']['A3']
+        cell.value = 987654321
+        stream = io.BytesIO()
+        book.save(stream)
+        for mask in ('000-00-0000', '000"-"00"-"0000', r'000\-00\-0000', '0000000000'):
+            with self.subTest(mask=mask):
+                # Reload a clean package so each subtest checks its own format.
+                copy = load_workbook(io.BytesIO(stream.getvalue()))
+                copy['Details']['A3'].number_format = mask
+                copy.save(self.xlsx)
+                with self.assertRaisesRegex(Blocked, 'number format'):
+                    self.load().inspect([('987-65-4321', 'ID 01')])
+        cell.value = 702.35
+        cell.number_format = '$#,##0.00'
+        book.save(self.xlsx)
+        pair, _ = self.load().inspect(RULES)
+        approved = load_workbook(io.BytesIO(pair[0][0]))['Details']['A3']
+        self.assertEqual((approved.value, approved.number_format), (702.35, '$#,##0.00'))
+
+    def test_named_formulas_are_blocked_but_local_ranges_survive(self):
+        book = load_workbook(self.xlsx)
+        book.active['C6'] = '=AuditRate'
+        name = DefinedName('AuditRate', hidden=True)
+        book.defined_names.add(name)
+        for expression in ('WEBSERVICE("https://fixture.invalid/never-called")',
+                           "'[other.xlsx]Budget'!$B$2", 'AuditAlias'):
+            with self.subTest(expression=expression):
+                name.attr_text = expression
+                book.save(self.xlsx)
+                with self.assertRaisesRegex(Blocked, 'defined name'):
+                    self.load().inspect(RULES)
+        name.attr_text = "'Budget'!$B$2:$B$3"
+        book.save(self.xlsx)
+        pair, _ = self.load().inspect(RULES)
+        approved = load_workbook(io.BytesIO(pair[0][0]))
+        self.assertEqual(approved.defined_names['AuditRate'].attr_text, name.attr_text)
+        self.assertEqual(approved.active['C6'].value, '=AuditRate')
+
+    def test_grouped_identifier_checks_every_numeric_cell_including_caches(self):
+        book = load_workbook(self.xlsx)
+        book.active['C6'] = '987,654,321'
+        book['Details']['A3'] = '=SUM(987654320,1)'
+        book['Details']['A3'].number_format = '#,##0'
+        book.save(self.xlsx)
+        with ZipFile(self.xlsx) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        sheet = 'xl/worksheets/sheet2.xml'
+        self.assertIn(b'</f><v></v>', parts[sheet])
+        parts[sheet] = parts[sheet].replace(b'</f><v></v>', b'</f><v>9.87654321E8</v>')
+        with ZipFile(self.xlsx,'w') as archive:
+            for name, data in parts.items():
+                archive.writestr(name, data)
+        for identifier in ('987,654,321', '987-65-4321', '987,654,321.00'):
+            with self.subTest(identifier=identifier), self.assertRaisesRegex(
+                    Blocked, r'Details \(hidden\)!A3 .*protected numeric value'):
+                self.load().inspect([(identifier, 'ID 01')])
+
+    def test_conditional_formula_cannot_carry_an_external_request(self):
+        book = load_workbook(self.xlsx)
+        book.active.conditional_formatting.add('B2', FormulaRule(
+            formula=['WEBSERVICE("https://fixture.invalid/never-called")']))
+        book.save(self.xlsx)
+        with self.assertRaisesRegex(Blocked, 'conditional-format formula'):
+            self.load()
+
+    def test_rounded_numeric_and_percentage_displays_cannot_hide_selected_ids(self):
+        for value, mask, selected in ((987654321.25, '#,##0', '987,654,321'),
+                                      (0.123456, '0.00%', '12.35%'),
+                                      (98765.125, '$#,##0.00', '$98,765.13')):
+            with self.subTest(mask=mask):
+                book = load_workbook(self.xlsx)
+                book.active['C6'] = selected
+                cell = book['Details']['A3']
+                cell.value = value
+                cell.number_format = mask
+                book.save(self.xlsx)
+                with self.assertRaisesRegex(Blocked, r'Details \(hidden\)!A3 .*protected numeric value'):
+                    self.load().inspect([(selected, 'ID 01')])
+
+    def test_unmodelled_numeric_displays_block_numeric_rules_only(self):
+        book = load_workbook(self.xlsx)
+        book.active['C6'] = 41431
+        book.active['C6'].number_format = 'mm-dd-yy'
+        book.active['A7'] = '06-06-13'
+        book.save(self.xlsx)
+        with self.assertRaisesRegex(Blocked, 'cannot verify selected numeric identifiers'):
+            self.load().inspect([('06-06-13', 'Date removed')])
+        self.load().inspect(RULES)
+
+    def test_formatted_uncached_formula_blocks_numeric_rules(self):
+        book = load_workbook(self.xlsx)
+        book.active['B4'].number_format = '#,##0'
+        book.save(self.xlsx)
+        with self.assertRaisesRegex(Blocked, 'formatted formula has no cached value'):
+            self.load().inspect([('987-65-4321', 'ID 01')])
 
     def test_excel_notes_name_unsupported_drawing(self):
         book = load_workbook(self.xlsx)

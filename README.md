@@ -8,11 +8,13 @@ Inspect a grant budget and its justification in the private browser app or the o
 
 Open **https://review.ymroue.com** and sign in. Once the app says it is ready, documents can be selected and processed offline. Choose one Excel budget and one Word or selectable-text PDF. Review the locations, choose which identifiers to replace, then inspect the approved copies. PDFs with scans, signatures, embedded objects or unsupported layouts require source cleanup.
 
-**Download review round** writes an organized ZIP containing both the original and redacted pairs, the review kit and the review record. Extract it in the local proposal folder. Only the contents of **03 Redacted** are intended for manual handoff. The next round number is tracked per project in the current browser profile. On a different device or profile, enter the appropriate next round number. Use the proposal sequence field for separate submissions from the same sponsor on the same day.
+**Download approved files** saves `Approved-files.zip` with exactly two files, `Budget.xlsx` and `Justification.docx` or `Justification.pdf`. Open both locally before handing them off to the approved reviewer.
+
+For internal recordkeeping, expand **Private backup with original files**, confirm that the backup should include both originals, and save it in the restricted proposal folder. This separate archive contains both document pairs, the review kit and the record with source filenames. Only the private backup uses the per-project round counter. On a different device or profile, enter the appropriate next round number. Use the proposal sequence field for separate submissions from the same sponsor on the same day.
 
 The browser entry point is `web/app.js`. Pyodide runs the Python Office inspector in the tab through `web/bridge.py`. For PDFs, `web/pdf.js` uses MuPDF to remove matched page content and builds a new document from rendered pages, selectable text and replacement labels. `web/gateway.js` verifies the sign-in token and allowed email before serving any site asset. The Worker accepts GET and HEAD only. The app has no document upload endpoint or server-side case storage.
 
-Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a deployment dry run. The production gateway requires the configured Access issuer, application audience and a private `REVIEW_EMAILS` binding. Protect the custom domain with the matching Access policy. Public Workers and preview hostnames are disabled. A developer can exercise the local browser app with `node web/test.mjs <synthetic-fixture-directory> <temporary-output-directory>` after installing Playwright Chromium. The input directory must contain the fictional input.xlsx and input.docx from tests/exercises.py and input.pdf from tests/test_pdf.py.
+Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a deployment dry run. The production gateway requires the configured Access issuer, application audience and a private `REVIEW_EMAILS` binding. Protect the custom domain with the matching Access policy. Public Workers and preview hostnames are disabled. A developer can exercise the local browser app with `node web/test.mjs <synthetic-fixture-directory> <temporary-output-directory>` after installing Playwright Chromium, or set `PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome. The ZIP checks use Python 3 (`PYTHON` can specify the executable). The input directory must contain the fictional input.xlsx and input.docx from tests/exercises.py and input.pdf from tests/test_pdf.py.
 
 ## Windows 11 pilot
 
@@ -38,7 +40,7 @@ The builder runs the tests, including the desktop workflow, before creating the 
 
 For development with an existing Python and Tk installation, run `py -3 -m proposal_review` on Windows or `python3 -m proposal_review` on macOS or Linux.
 
-## Proposal and review folders
+## Desktop proposal and review folders
 
 Enter the sponsor initials and the original submission date. For example, NIH and November 3, 2026 create **NIH-2026-11-03**. A second proposal from NIH on that date gets **NIH-2026-11-03-02**. An optional title helps distinguish them in the picker. Open the same project for revisions. Each approval saves a new numbered round. **Open saved round** opens its documents in the file manager.
 
@@ -58,7 +60,7 @@ Local cases/
 
 Keep reviewer edits, responses and the final disposition in that round’s **04 Review** folder. Open the next round for a revised submission. A canceled inspection creates no round.
 
-## Review a pair of files
+## Review a pair of files in the desktop pilot
 
 1. Select an Excel budget (.xlsx) and Word justification (.docx) or selectable-text PDF justification (.pdf). Original files are opened read-only.
 2. Inspect the **Original content and locations** tab, including hidden sheets, metadata and comments. Suggestions are local heuristics for names, email, US-style phone numbers and SSNs. Redact full names and other obvious personal identifiers, such as a personal email address, phone number or employee ID. Keep job roles, salary and effort available for review unless the specific text identifies someone. Add missed identifiers manually. Choose **Redact term** or **Keep selected** for every suggestion. Reuse the same neutral label for variants of one person. Rules match case-insensitive literal substrings (alphabetic terms of three characters or fewer match whole tokens); inspect overlaps and short terms carefully.
@@ -68,9 +70,9 @@ Keep reviewer edits, responses and the final disposition in that round’s **04 
 
 ## Supported files
 
-For PDFs, the export preserves page dimensions and the visible layout, renders each sanitized page at 144 dpi, and adds a verified selectable text layer. Original metadata and embedded resources are discarded. Inspect the **Redacted PDF pages** tab before approving. Scans, pages containing images or freehand drawings, interactive elements, non-horizontal text and difficult-to-verify text layouts block export with a reason.
+For PDFs, the export preserves page dimensions and the visible layout, renders each sanitized page at 144 dpi, and adds a verified selectable text layer. Original metadata and embedded resources are discarded. Inspect the **Redacted PDF pages** tab before approving. Use horizontal selectable text in standard, unembedded Helvetica, Courier or Times fonts. A page may include one simple horizontal divider. Drawings (including IDs made of strokes), symbol-art rows, images, custom fonts or mappings, and interactive content require a cleaned source. If a PDF is blocked, use the original Word justification when it is available.
 
-The pilot handles ordinary text-based workbooks and Word documents. It preserves original package parts unless redaction or thumbnail removal requires a change. It checks hidden sheets, shared strings, rich text, document properties, Word comments, and headers and footers. It supports ordinary arithmetic and common numeric functions such as SUM and ROUND. Formulas with text literals, dynamic functions, or external references require source cleanup. It protects formulas, numeric cells and structural fields. Excel headers and footers containing confirmed identifiers require source cleanup. Office thumbnail previews are discarded.
+The pilot handles ordinary text-based workbooks and Word documents. It preserves original package parts unless redaction or thumbnail removal requires a change. It checks hidden sheets, shared strings, rich text, document properties, Word comments, and headers and footers. It supports ordinary arithmetic and common numeric functions such as SUM and ROUND. Defined names must refer to a local cell or range. Named expressions, conditional or validation formulas, external references and custom formats that can disguise identifiers require source cleanup. Use an approved source copy to remove the sensitive value or replace unsupported formulas with verified values. It protects formulas, numeric cells and structural fields. Excel headers and footers containing confirmed identifiers require source cleanup. Office thumbnail previews are discarded.
 
 Unsupported parts or features block the pair with a location. Examples include macros, images, embedded objects, external links, tracked changes, fields, legacy comment drawings, protected sheets, unsupported custom XML and scanned files. Most classic Excel notes include a legacy drawing. A workbook with those notes may require a sanitized source copy. Each input is limited to 64 MiB, compressed and expanded, and 2,000 package entries. Detection cannot establish that every identifying detail has been removed. The reviewer inspects both files.
 
@@ -83,4 +85,4 @@ Unsupported parts or features block the pair with a location. Examples include m
 
 ## Test and rehearse
 
-Word and Excel use Python and Tk. PDF support uses the dependency listed in `requirements-pdf.txt`. For the test suite and exercise generator, install `requirements-test.txt` in a separate Python environment. Run `python -m unittest discover -v` from this folder. Run `python -m tests.exercises /path/to/new/exercises` to generate the five fictional practice cases in a new directory outside the repository. Compare a review of each case against the pilot answer key.
+Word and Excel use Python and Tk. PDF support uses the dependency listed in `requirements-pdf.txt`. For the test suite and exercise generator, install `requirements-test.txt` in a separate Python environment. Run `python -m unittest discover -v` from this folder. For the browser PDF regressions, run `npm run build` followed by `node --test web/pdf.test.mjs`. Run `python -m tests.exercises /path/to/new/exercises` to generate the five fictional practice cases in a new directory outside the repository. Compare a review of each case against the pilot answer key.

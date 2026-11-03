@@ -69,6 +69,7 @@ class Case:
             self.filenames.append(path.name)
 
     def inspect(self, rules):
+        rules = list(rules)
         aliases, pattern = normalize(rules)
         results = []
         changes = []
@@ -79,6 +80,8 @@ class Case:
                 changes.extend(edits)
                 continue
             copy = OfficeFile(original, source.kind)
+            if source.kind == 'xlsx':
+                copy.check_numeric_identifiers(rules)
             for part, field in copy.fields:
                 before = field.value
                 matches = list(pattern.finditer(before)) if pattern else []

@@ -6,7 +6,7 @@ const compact = text => text.replace(/\s/gu, '');
 const inventory = text => Array.from(compact(text)).sort().join('');
 function textLines(page) {
   const lines = [];
-  const text = page.toStructuredText('');
+  const text = page.toStructuredText('ignore-actualtext');
   try {
     text.walk({
       beginLine(box, mode, dir) {
@@ -24,18 +24,58 @@ function textLines(page) {
   return lines.filter(l=>l.value.trim());
 }
 
+// Only unembedded standard Latin fonts have a renderer-controlled glyph shape
+// and encoding. A custom font can draw a different ID from its extracted text.
+function checkResources(page) {
+  const resources=page.getObject().getInheritable('Resources');
+  resources.forEach((value,key)=>{
+    if(['Font','ProcSet'].includes(key))return;
+    if(['XObject','ExtGState'].includes(key) && value.isDictionary()){
+      value.forEach(()=>fail('Custom PDF resources require source cleanup.'));
+      return;
+    }
+    fail('Custom PDF resources require source cleanup.');
+  });
+  const fonts=resources.get('Font');
+  if(!fonts.isDictionary()) fail('No verifiable PDF font resources.');
+  let hasFont=false;
+  fonts.forEach(font=>{
+    hasFont=true;
+    const encoding=font.get('Encoding');
+    const base=font.get('BaseFont').asName();
+    if(font.get('Subtype').asName()!=='Type1' ||
+       !/^(?:Helvetica|Courier)(?:-Bold|-Oblique|-BoldOblique)?$|^Times-(?:Roman|Bold|Italic|BoldItalic)$/.test(base) ||
+       (!encoding.isNull() && (!encoding.isName() || !['WinAnsiEncoding','MacRomanEncoding','StandardEncoding'].includes(encoding.asName()))))
+      fail('Custom PDF fonts or encodings require source cleanup.');
+    font.forEach((_,key)=>{
+      if(!['Type','Subtype','BaseFont','Name','Encoding'].includes(key)) fail('Custom PDF font mappings require source cleanup.');
+    });
+  });
+  if(!hasFont) fail('No verifiable PDF font resources.');
+}
+
 function checkContent(page) {
-  let unsafe=false;
+  checkResources(page);
+  let unsafe=false, separators=0;
   const reject=()=>{unsafe=true;};
-  function path(shape, _, matrix) {
-    if(matrix[1] || matrix[2]) unsafe=true;
-    let last,first;
-    function segment(x,y) { if(last && last[0]!==x && last[1]!==y) unsafe=true; last=[x,y]; }
-    shape.walk({moveTo(x,y){first=last=[x,y];}, lineTo:segment, curveTo:reject, closePath(){if(first)segment(...first);}});
+  const width=page.getBounds()[2];
+  // Preserve a simple page divider. Filled shapes, short strokes, dashes or
+  // multiple segments can form visible digits without any selectable text.
+  function separator(path,stroke,matrix) {
+    let start, end;
+    path.walk({
+      moveTo(x,y){if(start)reject();start=[x,y];},
+      lineTo(x,y){if(end)reject();end=[x,y];},
+      curveTo:reject,closePath:reject
+    });
+    if(++separators>1 || !start || !end || start[1]!==end[1] ||
+       matrix[1]!==0 || matrix[2]!==0 || Math.abs((end[0]-start[0])*matrix[0])<width/2 ||
+       stroke.getLineWidth()*Math.abs(matrix[3])>2 || stroke.getDashes()?.length) reject();
   }
-  const device=new mupdf.Device({fillPath:path,strokePath:path,fillImage:reject,fillImageMask:reject,
-    clipImageMask:reject,fillShade:reject,ignoreText:reject,strokeText:reject,clipText:reject,clipStrokeText:reject,
-    beginLayer:reject,beginMask:reject,beginTile(){reject();return 0;}});
+  const device=new mupdf.Device({fillPath:reject,strokePath:separator,clipPath:reject,clipStrokePath:reject,
+    fillImage:reject,fillImageMask:reject,clipImageMask:reject,fillShade:reject,ignoreText:reject,
+    strokeText:reject,clipText:reject,clipStrokeText:reject,beginLayer:reject,beginGroup:reject,
+    beginMask:reject,beginTile(){reject();return 0;}});
   try {page.runPageContents(device,mupdf.Matrix.identity);device.close();} finally {device.destroy();}
   if(unsafe) fail('PDF contains a scan, drawing, hidden text or other unsupported page content.');
 }
@@ -53,10 +93,15 @@ export function readPdf(bytes) {
       try {
         const [x,y,w,h]=p.getBounds();
         pixels+=w*h*4;
-        if(x||y||w>1440||h>1440||pixels>64000000||p.getObject().getInheritable('Rotate').asNumber()||p.getObject().get('Annots').length||!p.getObject().getInheritable('Resources').get('XObject').isNull()) fail('Unsupported crop, rotation, page size, annotation or embedded object.');
+        if(x||y||w>1440||h>1440||pixels>64000000||p.getObject().getInheritable('Rotate').asNumber()||p.getObject().get('Annots').length) fail('Unsupported crop, rotation, page size, annotation or embedded object.');
         checkContent(p);
         const lines=textLines(p);
         if(!lines.length) fail('No selectable text on this page.');
+        for(const line of lines){
+          const visible=compact(line.value);
+          if(!/[\p{L}\p{N}]/u.test(visible) || /[^\p{L}\p{N}]{4}/u.test(visible) || /^(\p{L})\1{3,}$/u.test(visible))
+            fail('Symbol rows or text artwork require visual source cleanup.');
+        }
         result.push(lines);
       } catch(e){throw new Error('Page '+(i+1)+': '+e.message);} finally{p.destroy();}
     }

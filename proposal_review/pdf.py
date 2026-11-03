@@ -28,7 +28,7 @@ class Line:
 
 def lines_on(page):
     lines = []
-    for block in page.get_text('rawdict', sort=True, flags=engine().TEXTFLAGS_TEXT)['blocks']:
+    for block in page.get_text('rawdict', sort=True, flags=engine().TEXTFLAGS_TEXT | engine().TEXT_IGNORE_ACTUALTEXT)['blocks']:
         for line in block.get('lines', []):
             if tuple(line['dir']) != (1, 0):
                 stop('rotated text requires source cleanup', page)
@@ -41,25 +41,64 @@ def lines_on(page):
     return lines
 
 
+def dictionary_keys(obj):
+    return {obj.pdf_dict_get_key(i).pdf_to_name() for i in range(obj.pdf_dict_len())}
+
+
+def check_resources(page):
+    # Resolve inherited resources and direct dictionaries through MuPDF so a
+    # font cannot present an unrelated glyph under a trusted Unicode mapping.
+    mupdf = engine().mupdf
+    resources = mupdf.pdf_page_resources(mupdf.pdf_page_from_fz_page(page.this))
+    for key in dictionary_keys(resources) - {'Font', 'ProcSet'}:
+        value = resources.pdf_dict_gets(key)
+        if key not in ('XObject', 'ExtGState') or not value.pdf_is_dict() or value.pdf_dict_len():
+            stop('custom PDF resources require source cleanup', page)
+    fonts = resources.pdf_dict_gets('Font')
+    if not fonts.pdf_dict_len():
+        stop('no verifiable PDF font resources', page)
+    for i in range(fonts.pdf_dict_len()):
+        font = fonts.pdf_dict_get_val(i)
+        if dictionary_keys(font) - {'Type', 'Subtype', 'BaseFont', 'Name', 'Encoding'}:
+            stop('custom PDF font mappings require source cleanup', page)
+        base = font.pdf_dict_gets('BaseFont').pdf_to_name()
+        encoding = font.pdf_dict_gets('Encoding')
+        if (font.pdf_dict_gets('Subtype').pdf_to_name() != 'Type1' or
+                not re.fullmatch(r'(?:Helvetica|Courier)(?:-Bold|-Oblique|-BoldOblique)?|Times-(?:Roman|Bold|Italic|BoldItalic)', base) or
+                (not encoding.pdf_is_null() and encoding.pdf_to_name() not in
+                 ('WinAnsiEncoding', 'MacRomanEncoding', 'StandardEncoding'))):
+            stop('custom PDF fonts or encodings require source cleanup', page)
+
+
 def inspect_page(page):
     if (page.rotation or page.cropbox != page.mediabox or page.rect.tl != (0, 0)
             or page.rect.width > 1440 or page.rect.height > 1440):
         stop('rotated, cropped or oversized page', page)
     if page.annot_xrefs() or page.get_image_info() or page.get_xobjects():
         stop('image, annotation, link, form or embedded drawing requires source cleanup', page)
+    check_resources(page)
     for kind, _ in page.get_bboxlog():
-        if kind not in ('fill-text', 'stroke-path', 'fill-path'):
+        if kind not in ('fill-text', 'stroke-path'):
             stop('unsupported graphic or hidden content', page)
-    for drawing in page.get_drawings():
-        for item in drawing['items']:
-            if item[0] == 're':
-                continue
-            if item[0] == 'l' and (item[1].x == item[2].x or item[1].y == item[2].y):
-                continue
-            stop('freehand or outlined drawing requires visual source cleanup', page)
+    # Only a single solid horizontal page divider may accompany the text.
+    drawings = page.get_drawings(extended=True)
+    if drawings:
+        drawing = drawings[0]
+        if (len(drawings) != 1 or drawing['type'] != 's' or drawing['closePath']
+                or drawing['width'] > 2 or drawing['dashes'] != '[] 0'
+                or len(drawing['items']) != 1 or drawing['items'][0][0] != 'l'):
+            stop('unverifiable drawing requires source cleanup', page)
+        _, start, end = drawing['items'][0]
+        if start.y != end.y or abs(end.x - start.x) < page.rect.width / 2:
+            stop('unverifiable drawing requires source cleanup', page)
     lines = lines_on(page)
     if not lines:
         stop('no selectable text; scanned pages require source cleanup', page)
+    for line in lines:
+        visible = ''.join(line.value.split())
+        if (not any(c.isalnum() for c in visible) or re.search(r'(?:[^\w]|_){4}', visible)
+                or (len(visible) >= 4 and visible[0].isalpha() and len(set(visible)) == 1)):
+            stop('symbol rows or text artwork require visual source cleanup', page)
     return lines
 
 
@@ -124,7 +163,7 @@ class PdfFile:
                         inserts.append((chars[0]['origin'],label,size,rect))
                 if inserts:
                     page.apply_redactions(graphics=pdf.PDF_REDACT_LINE_ART_NONE)
-                    retained = page.get_text()
+                    retained = page.get_text(flags=pdf.TEXTFLAGS_TEXT | pdf.TEXT_IGNORE_ACTUALTEXT)
                     if Counter(''.join(retained.split())) != Counter(''.join(''.join(expected).split())):
                         stop('redaction would affect nearby text; prepare a safe source copy',page)
                     for origin,label,size,rect in inserts:
@@ -137,7 +176,7 @@ class PdfFile:
                 target = output.new_page(width=page.rect.width,height=page.rect.height)
                 pix = page.get_pixmap(matrix=pdf.Matrix(2,2),alpha=False)
                 target.insert_image(target.rect,stream=pix.tobytes('png'))
-                for x0,y0,x1,y1,word,*_ in page.get_text('words',sort=True):
+                for x0,y0,x1,y1,word,*_ in page.get_text('words',sort=True,flags=pdf.TEXTFLAGS_WORDS | pdf.TEXT_IGNORE_ACTUALTEXT):
                     width = pdf.get_text_length(word,fontsize=1)
                     size = min((x1-x0)/max(width,.01), (y1-y0)*.72)
                     if size <= 0:
@@ -149,7 +188,7 @@ class PdfFile:
             with pdf.open(stream=data,filetype='pdf') as saved:
                 for i,page in enumerate(saved):
                     text = page.get_text(sort=True)
-                    source_text = source[i].get_text(sort=True)
+                    source_text = source[i].get_text(sort=True,flags=pdf.TEXTFLAGS_TEXT | pdf.TEXT_IGNORE_ACTUALTEXT)
                     if ''.join(text.split()) != ''.join(source_text.split()):
                         stop('selectable text could not be verified after export',page)
                     if pattern and pattern.search(re.sub(r'\s+',' ',text)):
