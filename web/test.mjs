@@ -17,6 +17,10 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
     print(json.dumps(dict(entries)))`;
   return JSON.parse(execFileSync(process.env.PYTHON || 'python3',['-c',code,file],{encoding:'utf8'}));
 }
+function zipText(file,entry){
+  return execFileSync(process.env.PYTHON || 'python3',['-c',
+    'import sys, zipfile\nwith zipfile.ZipFile(sys.argv[1]) as z: print(z.read(sys.argv[2]).decode())',file,entry],{encoding:'utf8'});
+}
 const headers=(await readFile('web/_headers','utf8')).split('\n').slice(1).filter(x=>x.trim()).map(x=>x.trim().split(/: (.*)/s).slice(0,2));
 const server=createServer(async(req,res)=>{
   try{
@@ -27,10 +31,10 @@ const server=createServer(async(req,res)=>{
   }catch{res.end();}
 });
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
-const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL});
+const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH});
 try{
   for(const ext of ['pdf','docx']){
-    const context=await browser.newContext();
+    const context=await browser.newContext({viewport:ext==='docx'?{width:390,height:844}:{width:1280,height:900}});
     const page=await context.newPage();
     page.on('pageerror',e=>console.log('Browser error:',e.message));
     page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text().slice(0,300));});
@@ -38,6 +42,23 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
     await context.setOffline(true);
     const requests=[];page.on('request',req=>{if(/^https?:/.test(req.url()))requests.push(req.url());});
+    await page.getByRole('tab',{name:'Proposal',exact:true}).focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.locator('#guidelinesTab').getAttribute('aria-selected'),'true');
+    assert(await page.locator('#guidelinesPanel').isVisible());
+    assert.equal(await page.locator('#casePanel').isVisible(),false);
+    const links=await page.locator('#guidelinesPanel a').evaluateAll(nodes=>nodes.map(a=>({url:a.href,target:a.target,rel:a.rel,referrer:a.referrerPolicy})));
+    assert.equal(links.length,3);
+    for(const link of links){
+      assert(['www.ecfr.gov','grants.nih.gov'].includes(new URL(link.url).hostname));
+      assert.equal(new URL(link.url).protocol,'https:');
+      assert.equal(link.target,'_blank');assert.match(link.rel,/noopener/);assert.match(link.rel,/noreferrer/);
+      assert.equal(link.referrer,'no-referrer');
+    }
+    assert.match(await page.locator('#guidelinesPanel').textContent(),/does not apply these sources as automated compliance rules/);
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await page.keyboard.press('Home');
+    assert.equal(await page.locator('#caseTab').getAttribute('aria-selected'),'true');
     await page.locator('#sponsor').fill('NIH');await page.locator('#date').fill('2026-11-03');
     await page.locator('#budget').setInputFiles(path.join(fixture,'input.xlsx'));
     await page.locator('#justification').setInputFiles(path.join(fixture,'input.'+ext));
@@ -45,6 +66,13 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
     console.log('File check:',await page.locator('#status').textContent());
     assert(await page.locator('#review').isVisible());
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
+    assert.equal(await page.locator('#submissionCase').textContent(),'Proposal: NIH-2026-11-03');
+    await page.locator('#submissionStatus').selectOption('submitted');
+    await page.getByRole('tab',{name:'Guidelines',exact:true}).click();
+    await page.getByRole('tab',{name:'Proposal',exact:true}).click();
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
+    assert.deepEqual(await page.evaluate(()=>({local:{...localStorage},session:{...sessionStorage}})),{local:{},session:{}});
     let redacted=0;
     for(const row of await page.locator('.rule').all()){
       const term=await row.locator('input').first().inputValue();
@@ -57,6 +85,7 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#inspect').disabled);
     console.log('Export check:',await page.locator('#status').textContent());
     assert(await page.locator('#preview').isVisible());
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
     let downloads=0;
     page.on('download',()=>downloads++);
     const save=page.getByRole('button',{name:'Download approved files'});
@@ -76,6 +105,7 @@ try{
     assert.equal(handoff.name,'Approved-files.zip');
     const approvedNames=['Budget.xlsx','Justification.'+ext];
     assert.deepEqual(Object.keys(handoff.entries).sort(),approvedNames);
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
     const roundKey='proposal-review:last-round:NIH-2026-11-03';
     assert.equal(await page.evaluate(key=>localStorage.getItem(key),roundKey),null);
     await page.locator('#privateBackup summary').click();
@@ -95,8 +125,35 @@ try{
       assert.equal(handoff.entries[name],privateBackup.entries[prefix+'03 Redacted/'+name]);
     }
     assert(Object.hasOwn(privateBackup.entries,prefix+'Review record.txt'));
+    assert.match(zipText(path.join(output,'round-'+ext+'.zip'),prefix+'Review record.txt'),/Submission status \(user-set snapshot; not compliance or review approval\): Submitted/);
     assert.equal(await page.evaluate(key=>localStorage.getItem(key),roundKey),'1');
     assert.equal(await page.locator('#includeOriginals').isChecked(),false);
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
+    await page.locator('#submissionStatus').selectOption('withdrawn');
+    await page.locator('#includeOriginals').check();
+    const second=await download(backup,'round-2-'+ext+'.zip');
+    assert.equal(second.name,'Private-NIH-2026-11-03-Round-00002.zip');
+    assert.match(zipText(path.join(output,'round-2-'+ext+'.zip'),'NIH-2026-11-03/Reviews/Round-00002/Review record.txt'),/approval\): Withdrawn/);
+    assert.match(zipText(path.join(output,'round-'+ext+'.zip'),prefix+'Review record.txt'),/approval\): Submitted/);
+    assert.deepEqual(await page.evaluate(()=>({local:{...localStorage},session:{...sessionStorage}})),{local:{[roundKey]:'2'},session:{}});
+    assert.deepEqual(await page.evaluate(()=>indexedDB.databases()),[]);
+    assert.deepEqual(await context.cookies(),[]);
+    assert.deepEqual(requests,[]);
+    // Closing/reloading must not restore status or attach it to a different proposal.
+    await context.setOffline(false);
+    await page.locator('#reset').click();
+    await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
+    assert.equal(await page.locator('#submission').isVisible(),false);
+    await context.setOffline(true);requests.length=0;
+    await page.locator('#sponsor').fill('NIH');await page.locator('#date').fill('2026-11-03');
+    await page.locator('#sequence').fill('2');
+    await page.locator('#budget').setInputFiles(path.join(fixture,'input.xlsx'));
+    await page.locator('#justification').setInputFiles(path.join(fixture,'input.'+ext));
+    await page.getByText('Inspect files',{exact:true}).click();
+    await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
+    assert.equal(await page.locator('#submissionCase').textContent(),'Proposal: NIH-2026-11-03-02');
+    assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
     assert.deepEqual(requests,[]);
     console.log(ext,'offline workflow passed');await context.close();
   }
