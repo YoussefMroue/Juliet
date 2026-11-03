@@ -34,14 +34,37 @@ await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
 const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH});
 try{
   for(const ext of ['pdf','docx']){
-    const context=await browser.newContext({viewport:ext==='docx'?{width:390,height:844}:{width:1280,height:900}});
+    const context=await browser.newContext({viewport:ext==='docx'?{width:390,height:844}:{width:1280,height:900},hasTouch:ext==='docx'});
     const page=await context.newPage();
+    async function checkFeedback(){
+      const feedback=page.getByRole('link',{name:'Email feedback to ymroue9@gmail.com',exact:true});
+      assert(await feedback.isVisible());
+      // Exact URI excludes subject/body, attachments and any dynamic case metadata.
+      assert.equal(await feedback.getAttribute('href'),'mailto:ymroue9@gmail.com');
+      const box=await feedback.boundingBox(), viewport=page.viewportSize();
+      assert(box.width>=44 && box.height>=44);
+      assert(box.x>=0 && box.y>=0 && box.x+box.width<=viewport.width && box.y+box.height<=viewport.height);
+      // Intercept activation rather than launching an external email client in the test.
+      await feedback.evaluate(link=>{
+        window.feedbackActivated=false;
+        link.addEventListener('click',event=>{event.preventDefault();window.feedbackActivated=true;},{once:true});
+      });
+      if(ext==='docx')await feedback.tap();else await feedback.click();
+      assert.equal(await page.evaluate(()=>window.feedbackActivated),true);
+      await feedback.evaluate(link=>{
+        window.feedbackActivated=false;
+        link.addEventListener('click',event=>{event.preventDefault();window.feedbackActivated=true;},{once:true});
+      });
+      await feedback.focus();await page.keyboard.press('Enter');
+      assert.equal(await page.evaluate(()=>window.feedbackActivated),true);
+    }
     page.on('pageerror',e=>console.log('Browser error:',e.message));
     page.on('console',m=>{if(m.type()==='error')console.log('Browser error:',m.text().slice(0,300));});
     await page.goto('http://127.0.0.1:'+server.address().port);
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
     await context.setOffline(true);
     const requests=[];page.on('request',req=>{if(/^https?:/.test(req.url()))requests.push(req.url());});
+    await checkFeedback(); // Proposal selection.
     await page.getByRole('tab',{name:'Proposal',exact:true}).focus();
     await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('#guidelinesTab').getAttribute('aria-selected'),'true');
@@ -57,6 +80,8 @@ try{
     }
     assert.match(await page.locator('#guidelinesPanel').textContent(),/does not apply these sources as automated compliance rules/);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+    await checkFeedback(); // Guidelines, including the phone viewport.
+    await page.locator('#guidelinesTab').focus();
     await page.keyboard.press('Home');
     assert.equal(await page.locator('#caseTab').getAttribute('aria-selected'),'true');
     await page.locator('#sponsor').fill('NIH');await page.locator('#date').fill('2026-11-03');
@@ -66,6 +91,7 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
     console.log('File check:',await page.locator('#status').textContent());
     assert(await page.locator('#review').isVisible());
+    await checkFeedback(); // Identifier review and submission status.
     assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
     assert.equal(await page.locator('#submissionCase').textContent(),'Proposal: NIH-2026-11-03');
     await page.locator('#submissionStatus').selectOption('submitted');
@@ -85,6 +111,7 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#inspect').disabled);
     console.log('Export check:',await page.locator('#status').textContent());
     assert(await page.locator('#preview').isVisible());
+    await checkFeedback(); // Office content or redacted PDF preview.
     assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
     let downloads=0;
     page.on('download',()=>downloads++);
@@ -93,6 +120,7 @@ try{
     assert.equal(await backup.isVisible(),false);
     await save.click();
     assert.match(await page.locator('#status').textContent(),/select the approval box/);
+    await checkFeedback(); // Validation error state.
     assert.equal(downloads,0);
     await page.locator('#approved').check();
     async function download(button,filename){
@@ -109,6 +137,7 @@ try{
     const roundKey='proposal-review:last-round:NIH-2026-11-03';
     assert.equal(await page.evaluate(key=>localStorage.getItem(key),roundKey),null);
     await page.locator('#privateBackup summary').click();
+    await checkFeedback(); // Expanded private backup.
     await backup.click();
     await page.waitForFunction(()=>!document.querySelector('#backup').disabled);
     assert.match(await page.locator('#status').textContent(),/Confirm that the private backup/);
@@ -138,6 +167,10 @@ try{
     assert.deepEqual(await page.evaluate(()=>({local:{...localStorage},session:{...sessionStorage}})),{local:{[roundKey]:'2'},session:{}});
     assert.deepEqual(await page.evaluate(()=>indexedDB.databases()),[]);
     assert.deepEqual(await context.cookies(),[]);
+    await page.locator('#reset').scrollIntoViewIfNeeded();
+    const closeBox=await page.locator('#reset').boundingBox();
+    const feedbackBar=await page.locator('.feedback-bar').boundingBox();
+    assert(closeBox.y+closeBox.height<=feedbackBar.y,'Feedback bar must not cover the final case action.');
     assert.deepEqual(requests,[]);
     // Closing/reloading must not restore status or attach it to a different proposal.
     await context.setOffline(false);
@@ -145,6 +178,7 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
     assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
     assert.equal(await page.locator('#submission').isVisible(),false);
+    await checkFeedback(); // Closed/reset case.
     await context.setOffline(true);requests.length=0;
     await page.locator('#sponsor').fill('NIH');await page.locator('#date').fill('2026-11-03');
     await page.locator('#sequence').fill('2');

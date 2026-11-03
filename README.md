@@ -18,6 +18,8 @@ Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a de
 
 ### Submission status and guidelines
 
+The **Feedback** bubble is available throughout the browser app, including Guidelines and file review. It opens your configured email app addressed to `ymroue9@gmail.com`, with no subject, message body, attachments or case details added. You write, review and send the message yourself. If no email app is configured, compose an email to that address manually. The app does not send feedback or collect telemetry.
+
 After inspecting a pair, set its **Submission status** yourself. It is separate from redaction approval, compliance and sponsor receipt. It stays only in the open case and clears on close/reload; it does not sync to another tab or device. An explicitly requested private backup includes a status snapshot in `Review record.txt`. The two-file handoff never includes status. The existing private-round counter still stores the proposal ID and last round in this browser profile.
 
 The **Guidelines** tab offers three official reference links for manual review, with check dates and applicability notes. The app does not apply them as automated compliance rules. The list works offline; opening a link visits the publisher in a new tab. Supply each proposal's solicitation, amendments, relevant notices and confirmed Tulane requirements separately.
