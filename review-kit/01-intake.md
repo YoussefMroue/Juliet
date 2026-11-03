@@ -23,9 +23,9 @@ Complete these checks yourself; the app has no Cayuse or Waveworks integration.
 
 - [ ] Download the current budget and justification from Cayuse and check its proposal record.
 - [ ] Gather and review the funding-opportunity guidelines and applicable amendments.
-- [ ] Identify the PI name and project title on the workbook's Project sheet as redaction targets.
+- [ ] Identify the complete PI name and project title on the workbook's Project sheet as Blank cell targets.
 - [ ] Verify all salaries in Waveworks before creating copies with personnel names removed. If corrections are needed, prepare a separate corrected source pair and begin a new case.
-- [ ] Select every personnel name on TU Year One for redaction, including variants. Review the other sheets and justification for identifiers as well.
+- [ ] Select Blank cell for every personnel name on TU Year One, including variants. Only standalone text cells on Project and TU Year One are emptied. Mixed-content cells or formula dependencies require source cleanup. Other occurrences retain neutral replacements; review other sheets and the justification as well.
 - [ ] Inspect both redacted copies, including salary values and formulas, before approving the handoff.
 
 Keep any evidence from these systems in the approved local record; do not copy personnel salary details into feedback messages. These confirmations do not establish compliance or sponsor submission.

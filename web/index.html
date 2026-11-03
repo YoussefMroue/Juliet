@@ -29,8 +29,10 @@
 <label>PI name as written on Project<input id="projectPi" type="text" autocomplete="off" spellcheck="false"></label>
 <label>Project title as written on Project<input id="projectTitle" type="text" autocomplete="off" spellcheck="false"></label>
 <button type="button" id="addProjectIdentifiers">Add PI and project title to redactions</button>
-<p>These identifiers will use neutral replacement labels in both files wherever they match. Reuse the PI’s label for name variants. Add any other personnel names from TU Year One, including names the suggestions missed, using Add identifier below. Review all sheets and the justification too.</p>
-<label><input type="checkbox" id="personnelCovered"> I checked TU Year One and selected every personnel name there for redaction, including variants.</label>
+<p>Select <strong>Blank cell</strong> for the PI name, project title and every personnel name on TU Year One, including variants. Matching standalone text cells on Project and TU Year One will become truly empty in the exported workbook. Other occurrences, including in the justification, use your neutral replacement labels. Reuse the PI’s label for name variants.</p>
+<p>If a selected name shares a cell with a role or other text, or a formula may depend on a cell to be cleared, the app blocks that preview for source cleanup. It does not erase the whole mixed-content cell or guess which text to keep. Inspect the actual blank-cell locations in the change list.</p>
+<p>Add missed personnel names using Add identifier below and choose Blank cell. Review all sheets and the justification too. Use Redact for other identifiers that need labels instead of blank cells.</p>
+<label><input type="checkbox" id="personnelCovered"> I checked TU Year One and selected Blank cell for every personnel name there, including variants.</label>
 <p>These are your confirmations, not automated validation or compliance approval. The checklist and entered identifiers stay in this open case only. A private backup records the completed checklist without separately listing these identifiers.</p>
 </div>
 <details><summary>Read original text and locations</summary><pre id="original"></pre></details><div id="rules"></div><button id="add">Add identifier</button> <button id="inspect">Preview redacted copies</button></section>

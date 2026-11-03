@@ -4,6 +4,7 @@ import zipfile
 from types import SimpleNamespace
 from proposal_review.case import Case, candidate_terms, normalize
 from proposal_review.office import OfficeFile, Blocked
+from proposal_review.lynn import inspect_budget
 
 def office_read(data,kind):
     file = OfficeFile(data.to_py().tobytes(), kind)
@@ -13,8 +14,13 @@ def suggestions(rows):
     fields = [(None,SimpleNamespace(value=value)) for _,value in json.loads(rows)]
     return json.dumps(candidate_terms([SimpleNamespace(fields=fields)]))
 
-def office_edit(data,kind,rules):
+def office_edit(data,kind,rules,blank_terms='[]',project_terms='[]'):
     raw = data.to_py().tobytes()
+    if json.loads(blank_terms):
+        if kind != 'xlsx':
+            raise Blocked('Blank cell mode is only available for the workbook.')
+        result,changes,checked = inspect_budget(raw,json.loads(rules),json.loads(blank_terms),json.loads(project_terms))
+        return result, json.dumps(changes), json.dumps([(f.location,f.value) for _,f in checked.fields])
     # Use the desktop case inspector on one Office input in browser memory.
     case = Case.__new__(Case)
     case.originals = [raw]

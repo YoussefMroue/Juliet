@@ -48,15 +48,22 @@ try{
     await page.locator('#cayuseChecked').check();await page.locator('#guidanceGathered').check();
     await preview(/Verify all salaries in Waveworks/);
     await page.locator('#salariesVerified').check();
-    await preview(/Enter the PI name/);
+    await preview(/Enter the complete PI name/);
+    // Substrings that the real short-token matcher would never redact must fail.
+    await page.locator('#projectPi').fill('ir');await page.locator('#projectTitle').fill('mm');
+    await page.locator('#personnelCovered').check();
+    await preview(/Enter the complete PI name/);
+    assert.equal(await page.locator('#approved').isChecked(),false);
     await page.locator('#projectPi').fill('Mira Example');await page.locator('#projectTitle').fill('not the actual title');
     await page.locator('#addProjectIdentifiers').click();
-    await preview(/Enter the project title as it appears/);
+    await preview(/Enter the complete project title/);
     await page.locator('#projectTitle').fill('immune response pilot');
     await page.locator('#addProjectIdentifiers').click();
     for(const row of await page.locator('.rule').all()){
       const term=await row.locator('input').first().inputValue();
-      if(['Noor Fictional','mira@example.invalid'].includes(term))await row.locator('select').selectOption('redact');
+      if(term==='Noor Fictional')await row.locator('select').selectOption('blank');
+      if(term==='mira@example.invalid')await row.locator('select').selectOption('redact');
+      if(term==='not the actual title')await row.locator('select').selectOption('keep');
     }
     for(const [term,label] of [['XQ-417','Employee 01'],['MX','Person PI']]){
       await page.locator('#add').click();const row=page.locator('.rule').last();
@@ -74,10 +81,12 @@ try{
     for(const row of await piRow.all()){
       if(await row.locator('input').first().inputValue()==='Mira Example')await row.locator('select').selectOption('keep');
     }
-    await page.locator('#personnelCovered').check();await preview(/Select the PI name for redaction/);
+    await page.locator('#personnelCovered').check();await preview(/Select Blank cell for the PI name/);
     await page.locator('#addProjectIdentifiers').click();
     assert.equal(await page.locator('#personnelCovered').isChecked(),false);
     await page.locator('#personnelCovered').check();await preview();
+    assert.match(await page.locator('#changes').textContent(),/\[blank cell\]/);
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await page.getByRole('tab',{name:'Guidelines',exact:true}).click();
     await page.getByRole('tab',{name:'Proposal',exact:true}).click();
     assert(await page.locator('#salariesVerified').isChecked());
@@ -101,12 +110,13 @@ handoff, backup, fixture = sys.argv[1:]
 with zipfile.ZipFile(handoff) as z, zipfile.ZipFile(backup) as private:
  assert sorted(z.namelist()) == ['Budget.xlsx', 'Justification.docx']
  book = load_workbook(io.BytesIO(z.read('Budget.xlsx')))
- assert book['Project']['C3'].value != 'Mira Example'
- assert book['Project']['F7'].value == 'Project 01'
+ assert book['Project']['C3'].value is None
+ assert book['Project']['F7'].value is None
+ assert book['TU Year One']['A2'].value is None
  assert book['TU Year One']['B2'].value == 700
  assert book['TU Year One']['B5'].value == 150
  assert book['TU Year One']['B4'].value == '=SUM(B2:B3,B5)'
- assert book['TU Year One']['A5'].value != 'Noor Fictional'
+ assert book['TU Year One']['A5'].value is None
  doc = Document(io.BytesIO(z.read('Justification.docx')))
  assert 'Project 01' in '\\n'.join(p.text for p in doc.paragraphs)
  for name in z.namelist():
@@ -122,6 +132,7 @@ with zipfile.ZipFile(handoff) as z, zipfile.ZipFile(backup) as private:
 `,handoff,backup,fixture]);
     await page.locator('#useLynnWorkflow').uncheck();
     assert.equal(await page.locator('#preview').isVisible(),false);
+    await preview(/Blank cell requires/);
     await page.locator('#useLynnWorkflow').check();
     assert.equal(await page.locator('#salariesVerified').isChecked(),false);
     assert.deepEqual(requests,[]);assert.deepEqual(errors,[]);

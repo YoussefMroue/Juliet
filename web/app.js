@@ -9,23 +9,26 @@ const lynnChecks=['cayuseChecked','guidanceGathered','salariesVerified','personn
 const projectLocation=/(?:^|, )Project(?: \((?:hidden|veryHidden)\))?!/i;
 const personnelLocation=/(?:^|, )TU Year One(?: \((?:hidden|veryHidden)\))?!/i;
 const sameTerm=(a,b)=>a.trim().toLowerCase()===b.trim().toLowerCase();
-function requireLynnReview(rules){
-  if(!$('useLynnWorkflow').checked)return;
+function requireLynnReview(blankTerms){
+  if(!$('useLynnWorkflow').checked){
+    if(blankTerms.length)throw Error('Blank cell requires Lynn’s NIH R01 checklist. Choose Redact for the general workflow.');
+    return;
+  }
   if(!inputs.lynnSheets)throw Error('This checklist requires Project and TU Year One sheets. Check the workbook before continuing.');
   if(!$('cayuseChecked').checked || !$('guidanceGathered').checked)
     throw Error('Confirm the Cayuse record and funding-opportunity guidance checks.');
   if(!$('salariesVerified').checked)throw Error('Verify all salaries in Waveworks and confirm before previewing redacted copies.');
   for(const [id,label] of [['projectPi','PI name'],['projectTitle','project title']]){
     const term=$(id).value.trim();
-    if(!term || !inputs.projectFields.some(([,value])=>value.toLowerCase().includes(term.toLowerCase())))
-      throw Error('Enter the '+label+' as it appears on Project. Check the original content and locations.');
-    if(!rules.some(([value])=>sameTerm(value,term)))throw Error('Select the '+label+' for redaction using the identifier list.');
+    if(!term || !inputs.projectFields.some(([,value])=>sameTerm(value,term)))
+      throw Error('Enter the complete '+label+' as it appears in a standalone text cell on Project.');
+    if(!blankTerms.some(value=>sameTerm(value,term)))throw Error('Select Blank cell for the '+label+' in the identifier list.');
   }
-  if(!$('personnelCovered').checked)throw Error('Check TU Year One and confirm every personnel name has a redaction rule.');
+  if(!$('personnelCovered').checked)throw Error('Check TU Year One and confirm every personnel name is selected as Blank cell.');
 }
 function lynnRecord(){
   return $('useLynnWorkflow').checked
-    ? 'NIH R01 checklist — human-confirmed: Cayuse pair and record checked; opportunity guidance gathered; all salaries verified in Waveworks before redaction; Project PI/title and TU Year One personnel reviewed for redaction. Not independent system verification or compliance approval.'
+    ? 'NIH R01 checklist — human-confirmed: Cayuse pair and record checked; opportunity guidance gathered; all salaries verified in Waveworks before redaction; Project PI/title and TU Year One personnel selected for blank cells. Other occurrences use neutral labels. Not independent system verification or compliance approval.'
     : 'NIH R01 checklist not used.';
 }
 function discardPreview(){
@@ -60,7 +63,7 @@ function rule(term='',label='',decision=''){
   orig.value=term;alias.value=label;orig.placeholder='Identifier';alias.placeholder='Person 01';
   orig.setAttribute('aria-label','Identifier');alias.setAttribute('aria-label','Replacement');
   pick.setAttribute('aria-label','Decision');
-  for(const [v,name] of [['','Choose…'],['redact','Redact'],['keep','Keep']])pick.add(new Option(name,v));
+  for(const [v,name] of [['','Choose…'],['redact','Redact'],['blank','Blank cell (Lynn checklist)'],['keep','Keep']])pick.add(new Option(name,v));
   pick.value=decision;row.append(orig,alias,pick);$('rules').append(row);discardPreview();
 }
 $('rules').addEventListener('input',discardPreview);
@@ -77,12 +80,12 @@ $('addProjectIdentifiers').onclick=task($('addProjectIdentifiers'),()=>{
   for(const [id,label] of [['projectPi','Person PI'],['projectTitle','Project 01']]){
     const term=$(id).value.trim();
     const existing=[...$('rules').children].find(row=>sameTerm(row.children[0].value,term));
-    if(existing){existing.children[2].value='redact';if(!existing.children[1].value.trim())existing.children[1].value=label;}
-    else rule(term,label,'redact');
+    if(existing){existing.children[2].value='blank';if(!existing.children[1].value.trim())existing.children[1].value=label;}
+    else rule(term,label,'blank');
   }
   $('personnelCovered').checked=false;
   discardPreview();
-  status('PI and project title selected for redaction. Review the rules and all personnel names before previewing.');
+  status('PI and project title selected as Blank cell. Select all TU Year One personnel names as Blank cell before previewing.');
 });
 $('add').onclick=()=>rule('','','redact');
 $('reset').onclick=()=>location.reload();
@@ -117,15 +120,17 @@ $('inputs').onsubmit=task($('pick'),async()=>{
 });
 $('inspect').onclick=task($('inspect'),async()=>{
   discardPreview();
-  const rules=[];
+  const rules=[],blankTerms=[];
   for(const row of $('rules').children){
     const [t,l,pick]=row.children;
-    if(!pick.value)throw Error('Choose Redact or Keep for each suggestion.');
-    if(pick.value==='redact')rules.push([t.value,l.value]);
+    if(!pick.value)throw Error('Choose Redact, Blank cell or Keep for each suggestion.');
+    if(['redact','blank'].includes(pick.value))rules.push([t.value,l.value]);
+    if(pick.value==='blank')blankTerms.push(t.value);
   }
-  requireLynnReview(rules);
+  requireLynnReview(blankTerms);
   const r=JSON.stringify(rules);
-  const [b,changes,fields]=call('office_edit',inputs.b,'xlsx',r);
+  const projectTerms=$('useLynnWorkflow').checked?[$('projectPi').value,$('projectTitle').value]:[];
+  const [b,changes,fields]=call('office_edit',inputs.b,'xlsx',r,JSON.stringify(blankTerms),JSON.stringify(projectTerms));
   const edits=JSON.parse(changes), checked=JSON.parse(fields);
   let j;
   if(inputs.kind==='pdf'){
@@ -141,7 +146,7 @@ $('inspect').onclick=task($('inspect'),async()=>{
     j=data;edits.push(...JSON.parse(more));checked.push(...JSON.parse(rows));
   }
   output={b,j};$('checked').textContent=checked.map(([loc,v])=>loc+'   '+v).join('\n');
-  $('changes').textContent=edits.length?edits.map(([f,loc,old,v])=>f+' · '+loc+'\n'+old+' → '+v).join('\n\n'):'No replacements selected.';
+  $('changes').textContent=edits.length?edits.map(([f,loc,old,v])=>f+' · '+loc+'\n'+old+' → '+(v===''?'[blank cell]':v)).join('\n\n'):'No replacements selected.';
   $('preview').hidden=false;status('Inspect both copies before saving.');$('preview').scrollIntoView();
 });
 function downloadZip(files,filename){
