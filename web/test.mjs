@@ -188,6 +188,13 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
     assert.equal(await page.locator('#submissionCase').textContent(),'Proposal: NIH-2026-11-03-02');
     assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
+    await page.locator('#useLynnWorkflow').check();
+    assert.match(await page.locator('#lynnSheets').textContent(),/was not found/);
+    for(const row of await page.locator('.rule').all())await row.locator('select').selectOption('keep');
+    await page.locator('#inspect').click();
+    await page.waitForFunction(()=>!document.querySelector('#inspect').disabled);
+    assert.match(await page.locator('#status').textContent(),/requires Project and TU Year One/);
+    assert.equal(await page.locator('#preview').isVisible(),false);
     assert.deepEqual(requests,[]);
     console.log(ext,'offline workflow passed');await context.close();
   }

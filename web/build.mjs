@@ -24,7 +24,7 @@ for (const [pkg, files] of Object.entries({
   for (const name of files) await copyFile('node_modules/'+pkg+'/'+name,site+'/'+pkg+'/'+path.basename(name));
 }
 const modules={};
-for(const name of ['__init__','office','pdf','case']) modules[name+'.py']=await readFile('proposal_review/'+name+'.py','utf8');
+for(const name of ['__init__','office','pdf','case','lynn']) modules[name+'.py']=await readFile('proposal_review/'+name+'.py','utf8');
 const kit={};
 for(const name of ['01-intake','02-review-instructions','03-findings'])kit[name+'.md']=await readFile('review-kit/'+name+'.md','utf8');
 await writeFile(site+'/runtime.json',JSON.stringify({modules,kit,bridge:await readFile('web/bridge.py','utf8')}));

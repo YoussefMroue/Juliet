@@ -5,6 +5,32 @@ const $=id=>document.getElementById(id);
 const status=message=>{$('status').textContent=message;};
 let py,kit,inputs,output;
 const previewUrls=[];
+const lynnChecks=['cayuseChecked','guidanceGathered','salariesVerified','personnelCovered'];
+const projectLocation=/(?:^|, )Project(?: \((?:hidden|veryHidden)\))?!/i;
+const personnelLocation=/(?:^|, )TU Year One(?: \((?:hidden|veryHidden)\))?!/i;
+const sameTerm=(a,b)=>a.trim().toLowerCase()===b.trim().toLowerCase();
+function requireLynnReview(blankTerms){
+  if(!$('useLynnWorkflow').checked){
+    if(blankTerms.length)throw Error('Blank cell requires Lynn’s NIH R01 checklist. Choose Redact for the general workflow.');
+    return;
+  }
+  if(!inputs.lynnSheets)throw Error('This checklist requires Project and TU Year One sheets. Check the workbook before continuing.');
+  if(!$('cayuseChecked').checked || !$('guidanceGathered').checked)
+    throw Error('Confirm the Cayuse record and funding-opportunity guidance checks.');
+  if(!$('salariesVerified').checked)throw Error('Verify all salaries in Waveworks and confirm before previewing redacted copies.');
+  for(const [id,label] of [['projectPi','PI name'],['projectTitle','project title']]){
+    const term=$(id).value.trim();
+    if(!term || !inputs.projectFields.some(([,value])=>sameTerm(value,term)))
+      throw Error('Enter the complete '+label+' as it appears in a standalone text cell on Project.');
+    if(!blankTerms.some(value=>sameTerm(value,term)))throw Error('Select Blank cell for the '+label+' in the identifier list.');
+  }
+  if(!$('personnelCovered').checked)throw Error('Check TU Year One and confirm every personnel name is selected as Blank cell.');
+}
+function lynnRecord(){
+  return $('useLynnWorkflow').checked
+    ? 'NIH R01 checklist — human-confirmed: Cayuse pair and record checked; opportunity guidance gathered; all salaries verified in Waveworks before redaction; Project PI/title and TU Year One personnel selected for blank cells. Other occurrences use neutral labels. Not independent system verification or compliance approval.'
+    : 'NIH R01 checklist not used.';
+}
 function discardPreview(){
   output=null;
   $('approved').checked=false;
@@ -37,10 +63,30 @@ function rule(term='',label='',decision=''){
   orig.value=term;alias.value=label;orig.placeholder='Identifier';alias.placeholder='Person 01';
   orig.setAttribute('aria-label','Identifier');alias.setAttribute('aria-label','Replacement');
   pick.setAttribute('aria-label','Decision');
-  for(const [v,name] of [['','Choose…'],['redact','Redact'],['keep','Keep']])pick.add(new Option(name,v));
+  for(const [v,name] of [['','Choose…'],['redact','Redact'],['blank','Blank cell (Lynn checklist)'],['keep','Keep']])pick.add(new Option(name,v));
   pick.value=decision;row.append(orig,alias,pick);$('rules').append(row);discardPreview();
 }
 $('rules').addEventListener('input',discardPreview);
+$('rules').addEventListener('input',()=>{$('personnelCovered').checked=false;});
+$('lynnWorkflow').addEventListener('input',discardPreview);
+for(const id of ['projectPi','projectTitle'])$(id).addEventListener('input',()=>{$('personnelCovered').checked=false;});
+$('useLynnWorkflow').onchange=()=>{
+  $('lynnWorkflow').hidden=!$('useLynnWorkflow').checked;
+  lynnChecks.forEach(id=>{$(id).checked=false;});
+  discardPreview();
+};
+$('addProjectIdentifiers').onclick=task($('addProjectIdentifiers'),()=>{
+  if(!$('projectPi').value.trim() || !$('projectTitle').value.trim())throw Error('Enter both the PI name and project title from Project.');
+  for(const [id,label] of [['projectPi','Person PI'],['projectTitle','Project 01']]){
+    const term=$(id).value.trim();
+    const existing=[...$('rules').children].find(row=>sameTerm(row.children[0].value,term));
+    if(existing){existing.children[2].value='blank';if(!existing.children[1].value.trim())existing.children[1].value=label;}
+    else rule(term,label,'blank');
+  }
+  $('personnelCovered').checked=false;
+  discardPreview();
+  status('PI and project title selected as Blank cell. Select all TU Year One personnel names as Blank cell before previewing.');
+});
 $('add').onclick=()=>rule('','','redact');
 $('reset').onclick=()=>location.reload();
 $('inputs').onsubmit=task($('pick'),async()=>{
@@ -49,13 +95,22 @@ $('inputs').onsubmit=task($('pick'),async()=>{
   if(!/\.xlsx$/i.test(budget.name)||!['pdf','docx'].includes(kind)) throw Error('Select an XLSX and a DOCX or PDF.');
   if(Math.max(budget.size,just.size)>64*1024*1024)throw Error('Each input must be under 64 MiB.');
   const b=new Uint8Array(await budget.arrayBuffer()),j=new Uint8Array(await just.arrayBuffer());
-  const rows=call('office_read',b,'xlsx').map(([loc,v])=>['Budget · '+loc,v]);
+  const budgetFields=call('office_read',b,'xlsx');
+  const rows=budgetFields.map(([loc,v])=>['Budget · '+loc,v]);
   const pages=kind==='pdf'?readPdf(j):null;
   if(pages)pages.forEach((lines,i)=>lines.forEach((l,k)=>rows.push(['Page '+(i+1)+' · line '+(k+1),l.value])));
   else rows.push(...call('office_read',j,kind).map(([loc,v])=>['Justification · '+loc,v]));
   const suffix=Number($('sequence').value);
   const id=$('sponsor').value.toUpperCase()+'-'+$('date').value+(suffix>1?'-'+String(suffix).padStart(2,'0'):'');
   inputs={id,b,j,kind,pages,budgetName:budget.name,justName:just.name};
+  const sheets=budgetFields.filter(([loc])=>loc==='Sheet name').map(([,value])=>value.trim().toLowerCase());
+  inputs.lynnSheets=['project','tu year one'].every(name=>sheets.includes(name));
+  inputs.projectFields=budgetFields.filter(([loc])=>projectLocation.test(loc));
+  $('lynnOriginal').textContent=budgetFields.filter(([loc])=>projectLocation.test(loc)||personnelLocation.test(loc)).map(([loc,value])=>loc+'   '+value).join('\n');
+  $('lynnSheets').textContent=inputs.lynnSheets?'Project and TU Year One found. Confirm their contents and the selected pair.':'Project or TU Year One was not found. Check the workbook; this checklist expects both sheets.';
+  $('useLynnWorkflow').checked=false;$('lynnWorkflow').hidden=true;
+  lynnChecks.forEach(id=>{$(id).checked=false;});
+  $('projectPi').value='';$('projectTitle').value='';
   startSubmission(id);
   $('original').textContent=rows.map(([loc,v])=>loc+'   '+v).join('\n');
   $('rules').replaceChildren();
@@ -65,14 +120,17 @@ $('inputs').onsubmit=task($('pick'),async()=>{
 });
 $('inspect').onclick=task($('inspect'),async()=>{
   discardPreview();
-  const rules=[];
+  const rules=[],blankTerms=[];
   for(const row of $('rules').children){
     const [t,l,pick]=row.children;
-    if(!pick.value)throw Error('Choose Redact or Keep for each suggestion.');
-    if(pick.value==='redact')rules.push([t.value,l.value]);
+    if(!pick.value)throw Error('Choose Redact, Blank cell or Keep for each suggestion.');
+    if(['redact','blank'].includes(pick.value))rules.push([t.value,l.value]);
+    if(pick.value==='blank')blankTerms.push(t.value);
   }
+  requireLynnReview(blankTerms);
   const r=JSON.stringify(rules);
-  const [b,changes,fields]=call('office_edit',inputs.b,'xlsx',r);
+  const projectTerms=$('useLynnWorkflow').checked?[$('projectPi').value,$('projectTitle').value]:[];
+  const [b,changes,fields]=call('office_edit',inputs.b,'xlsx',r,JSON.stringify(blankTerms),JSON.stringify(projectTerms));
   const edits=JSON.parse(changes), checked=JSON.parse(fields);
   let j;
   if(inputs.kind==='pdf'){
@@ -88,7 +146,7 @@ $('inspect').onclick=task($('inspect'),async()=>{
     j=data;edits.push(...JSON.parse(more));checked.push(...JSON.parse(rows));
   }
   output={b,j};$('checked').textContent=checked.map(([loc,v])=>loc+'   '+v).join('\n');
-  $('changes').textContent=edits.length?edits.map(([f,loc,old,v])=>f+' · '+loc+'\n'+old+' → '+v).join('\n\n'):'No replacements selected.';
+  $('changes').textContent=edits.length?edits.map(([f,loc,old,v])=>f+' · '+loc+'\n'+old+' → '+(v===''?'[blank cell]':v)).join('\n\n'):'No replacements selected.';
   $('preview').hidden=false;status('Inspect both copies before saving.');$('preview').scrollIntoView();
 });
 function downloadZip(files,filename){
@@ -121,7 +179,7 @@ $('backup').onclick=task($('backup'),async()=>{
       files[prefix+folder+'/Budget.xlsx']=b;files[prefix+folder+'/Justification.'+inputs.kind]=j;
     }
     files[prefix+'02 Guidance/']='';
-    files[prefix+'Review record.txt']=[inputs.id,name,new Date().toISOString(),inputs.budgetName,inputs.justName,submissionRecord(),'03 Redacted contains the approved copies.'].join('\n');
+    files[prefix+'Review record.txt']=[inputs.id,name,new Date().toISOString(),inputs.budgetName,inputs.justName,submissionRecord(),lynnRecord(),'03 Redacted contains the approved copies.'].join('\n');
     for(const [title,text] of Object.entries(kit))files[prefix+'04 Review/'+title]=text;
     downloadZip(files,'Private-'+inputs.id+'-'+name+'.zip');
     localStorage.setItem(key,String(number));

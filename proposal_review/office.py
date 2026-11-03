@@ -71,6 +71,7 @@ class Field:
     nodes: list
     editable: bool = True
     numeric: bool = False
+    cell_refs: tuple = ()  # Worksheet part and address for each cell using this text.
 
     @property
     def value(self):
@@ -256,9 +257,12 @@ class OfficeFile:
         if main not in self.links.get('', {}).values():
             self.stop('missing main document relationship')
 
+    def cell_location(self, part, address):
+        return f'{self.sheet_titles[part]}!{address}'
+
     def _index(self):
         shared = defaultdict(list)
-        sheet_names = {}
+        self.sheet_titles = {}
         if self.kind == 'xlsx':
             book = 'xl/workbook.xml'
             self._check_excel_features({sh.getAttribute('name').casefold()
@@ -269,14 +273,15 @@ class OfficeFile:
                     self.stop(book + ' — sheet relationship missing')
                 label = sh.getAttribute('name')
                 state = sh.getAttribute('state')
-                sheet_names[path] = label + (f' ({state})' if state and state != 'visible' else '')
+                self.sheet_titles[path] = label + (f' ({state})' if state and state != 'visible' else '')
                 self.fields.append((book, Field('Sheet name', [sh.getAttributeNode('name')], False)))
-        for part, title in sheet_names.items():
+        for part in self.sheet_titles:
             # Column and conditional formats can apply without an explicit cell style.
             inherited_style = (any(col.hasAttribute('style') for col in elements(self.roots[part], S, 'col'))
                                or bool(elements(self.roots[part], S, 'conditionalFormatting')))
             for cell in elements(self.roots[part], S, 'c'):
-                loc = f'{title}!{cell.getAttribute("r")}'
+                ref = (part, cell.getAttribute('r'))
+                loc = self.cell_location(*ref)
                 kind = cell.getAttribute('t')
                 formulas = elements(cell, S, 'f')
                 for f in formulas:
@@ -297,28 +302,30 @@ class OfficeFile:
                     index = ''.join(n.data for n in children_text(vals[0])) if len(vals) == 1 else ''
                     if not re.fullmatch(r'0|[1-9][0-9]{0,8}', index):
                         self.stop(loc + ' — invalid shared string reference')
-                    shared[index].append(loc)
+                    shared[index].append(ref)
                 elif kind == 'inlineStr':
-                    self.rich(part, loc, cell, S)
+                    self.rich(part, loc, cell, S, (ref,))
                 else:
                     for v in vals:
                         self.add(part, loc, children_text(v), False, numeric=kind in ('', 'n'))
         if shared:
             strings = self.roots.get('xl/sharedStrings.xml')
             size = len(elements(strings, S, 'si')) if strings else 0
-            for index, locations in shared.items():
+            for index, refs in shared.items():
                 if int(index) >= size:
-                    self.stop(locations[0] + ' — shared text cannot be located')
+                    self.stop(self.cell_location(*refs[0]) + ' — shared text cannot be located')
         for part, root in self.roots.items():
             if part == 'xl/sharedStrings.xml':
                 for i, item in enumerate(elements(root, S, 'si')):
-                    self.rich(part, ', '.join(shared[str(i)]) or f'Unused shared string {i}', item, S)
+                    refs = tuple(shared[str(i)])
+                    locations = ', '.join(self.cell_location(*ref) for ref in refs)
+                    self.rich(part, locations or f'Unused shared string {i}', item, S, refs)
             if part.startswith('xl/'):
                 for item in elements(root, S, 'comment'):
                     self.rich(part, f'{part} comment {item.getAttribute("ref")}', item, S)
                 for tag in ('author','oddHeader','evenHeader','firstHeader','oddFooter','evenFooter','firstFooter','definedName'):
                     for el in elements(root, S, tag):
-                        self.add(part, f'{sheet_names.get(part,part)} / {tag}', children_text(el), tag=='author')
+                        self.add(part, f'{self.sheet_titles.get(part,part)} / {tag}', children_text(el), tag=='author')
             if part.startswith('word/'):
                 for i, para in enumerate(elements(root, W, 'p'), 1):
                     self.rich(part, f'{part} ¶{i}', para, W)
@@ -346,7 +353,7 @@ class OfficeFile:
                         if a.localName in ('name', 'val', 'formatCode'):
                             self.add(part, f'{part} / {el.tagName} / {a.name}', [a], False)
 
-    def rich(self, part, location, el, namespace):
+    def rich(self, part, location, el, namespace, cell_refs=()):
         nodes = []
         has_separator = False
         for child in el.getElementsByTagName('*'):
@@ -358,11 +365,11 @@ class OfficeFile:
                 nodes.append(el.ownerDocument.createTextNode(' '))
                 has_separator = True
         # A match in a paragraph with layout controls needs human source cleanup.
-        self.add(part, location, nodes, not has_separator)
+        self.add(part, location, nodes, not has_separator, cell_refs=cell_refs)
 
-    def add(self, part, location, nodes, editable=True, numeric=False):
+    def add(self, part, location, nodes, editable=True, numeric=False, cell_refs=()):
         if nodes and any(n.nodeValue.strip() for n in nodes):
-            self.fields.append((part, Field(location, nodes, editable, numeric)))
+            self.fields.append((part, Field(location, nodes, editable, numeric, cell_refs)))
 
     def check_numeric_identifiers(self, rules):
         # The same identifier may appear once as text and elsewhere as a number.
