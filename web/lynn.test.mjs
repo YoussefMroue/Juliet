@@ -152,8 +152,18 @@ try{
 from pathlib import Path
 from openpyxl import load_workbook
 from docx import Document
-handoff, backup, fixture = sys.argv[1:]
+handoff, backup, fixture, width = sys.argv[1:]
 with zipfile.ZipFile(handoff) as z, zipfile.ZipFile(backup) as private:
+ roots = {entry.split('/')[0] for entry in private.namelist()}
+ assert len(roots) == 1
+ root = roots.pop()
+ prefix = root + '/Reviews/Round-00001/'
+ record = private.read(prefix+'Review record.txt').decode()
+ if width == '1280':
+  proposal_id = next(line.removeprefix('Portfolio proposal ID: ') for line in record.splitlines() if line.startswith('Portfolio proposal ID: '))
+  assert root == 'NIH-2026-11-03_' + proposal_id
+ else:
+  assert root == 'NIH-2026-11-03'
  assert sorted(z.namelist()) == ['Budget.xlsx', 'Justification.docx']
  book = load_workbook(io.BytesIO(z.read('Budget.xlsx')))
  assert book['Project']['C3'].value is None
@@ -170,12 +180,10 @@ with zipfile.ZipFile(handoff) as z, zipfile.ZipFile(backup) as private:
    xml = '\\n'.join(office.read(p).decode() for p in office.namelist() if p.endswith('.xml'))
    for term in ['Mira Example','Noor Fictional','immune response pilot','mira@example.invalid','XQ-417']:
     assert term not in xml, term
-  prefix = 'NIH-2026-11-03/Reviews/Round-00001/'
   assert private.read(prefix+'01 Sources/'+name) == (Path(fixture)/('input'+Path(name).suffix)).read_bytes()
- record = private.read(prefix+'Review record.txt').decode()
  assert 'NIH R01 checklist — human-confirmed' in record
  assert 'immune response pilot' not in record and 'Mira Example' not in record
-`,handoff,backup,fixture]);
+`,handoff,backup,fixture,String(width)]);
     await page.locator('#useLynnWorkflow').uncheck();
     assert.equal(await page.locator('#preview').isVisible(),false);
     await preview(/Blank cell requires/);

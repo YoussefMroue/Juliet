@@ -40,11 +40,14 @@ try{
     window.showDirectoryPicker=async()=>navigator.storage.getDirectory();
   });
   const portfolioPage=await portfolioContext.newPage();
+  const standalonePage=await portfolioContext.newPage();
   await portfolioPage.goto('http://127.0.0.1:'+server.address().port);
   await portfolioPage.waitForFunction(()=>!document.querySelector('#pick').disabled);
+  await standalonePage.goto(portfolioPage.url());
+  await standalonePage.waitForFunction(()=>!document.querySelector('#pick').disabled);
   await portfolioContext.setOffline(true);
   const portfolioRequests=[];
-  portfolioPage.on('request',request=>portfolioRequests.push(request.url()));
+  for(const page of [portfolioPage,standalonePage])page.on('request',request=>portfolioRequests.push(request.url()));
   const portfolio=portfolioPage.locator('#portfolio');
   const portfolioButton=name=>portfolio.getByRole('button',{name,exact:true});
   await portfolioButton('Open portfolio folder').click();
@@ -61,6 +64,8 @@ try{
     await portfolio.getByRole('heading',{name:label+' workspace',exact:true}).waitFor();
   }
   await portfolioButton('Open '+first).click();
+  const ownerText=await portfolio.getByText(/^Proposal ID /).innerText();
+  const owner=ownerText.match(/^Proposal ID ([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/)[1];
   await portfolioButton('Prepare budget and justification').click();
   assert.match(await portfolioPage.locator('#boundCase').textContent(),new RegExp(first));
   assert.equal(await portfolioPage.locator('#sponsor').isEditable(),false);
@@ -72,6 +77,45 @@ try{
   for(const choice of await portfolioPage.locator('.rule select').all())await choice.selectOption('keep');
   await portfolioPage.locator('#inspect').click();
   await portfolioPage.locator('#approved').check();
+  // Both tabs share the real origin, Web Locks and localStorage. They deliberately
+  // use the same sponsor/date/sequence, but only one is bound to the portfolio.
+  await standalonePage.getByRole('tab',{name:'Prepare files',exact:true}).click();
+  await standalonePage.locator('#sponsor').fill('NIH');
+  await standalonePage.locator('#date').fill('2026-11-03');
+  await standalonePage.locator('#budget').setInputFiles({name:'standalone-source.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:await readFile(path.join(fixture,'input.xlsx'))});
+  await standalonePage.locator('#justification').setInputFiles(path.join(fixture,'input.docx'));
+  await standalonePage.getByRole('button',{name:'Inspect files',exact:true}).click();
+  await standalonePage.locator('#review').waitFor();
+  for(const choice of await standalonePage.locator('.rule select').all())await choice.selectOption('keep');
+  await standalonePage.locator('#inspect').click();
+  await standalonePage.locator('#approved').check();
+  for(const page of [standalonePage,portfolioPage])await page.locator('#privateBackup summary').click();
+  async function privateExport(page) {
+    await page.locator('#includeOriginals').check();
+    const [file]=await Promise.all([page.waitForEvent('download',{timeout:10000}),page.locator('#backup').click()]);
+    return file;
+  }
+  async function checkPrivate(file,isBound,round) {
+    const roundName='Round-'+String(round).padStart(5,'0');
+    const folder=isBound ? first+'_'+owner : first;
+    assert.equal(file.suggestedFilename(),'Private-'+folder+'-'+roundName+'.zip');
+    const saved=await file.path();
+    const prefix=folder+'/Reviews/'+roundName+'/';
+    const entries=Object.keys(zipContents(saved));
+    assert(entries.length>0 && entries.every(name=>name.startsWith(prefix)));
+    const record=zipText(saved,prefix+'Review record.txt').split('\n');
+    assert(record.includes(first) && record.includes(roundName));
+    assert.equal(record.includes('Portfolio proposal ID: '+owner),isBound);
+    assert(record.includes(isBound?'input.xlsx':'standalone-source.xlsx'));
+  }
+  await checkPrivate(await privateExport(standalonePage),false,1);
+  await checkPrivate(await privateExport(portfolioPage),true,1);
+  const [legacyBackup,boundBackup]=await Promise.all([privateExport(standalonePage),privateExport(portfolioPage)]);
+  await checkPrivate(legacyBackup,false,2);
+  await checkPrivate(boundBackup,true,2);
+  const counters=await standalonePage.evaluate(()=>({...localStorage}));
+  assert.deepEqual(counters,{['proposal-review:last-round:'+first]:'2',['proposal-review:last-round:'+owner]:'2'});
+  await standalonePage.close();
   await portfolioPage.getByRole('tab',{name:'Portfolio',exact:true}).click();
   await portfolioButton('Open '+second).click();
   await portfolioButton('Prepare budget and justification').click();

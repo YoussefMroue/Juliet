@@ -224,7 +224,8 @@ $('backup').onclick=task($('backup'),async(current)=>{
     const number=Number($('round').value)||previous+1;
     if(!Number.isSafeInteger(number)||number<=previous||number>99999)throw Error('Choose a later round number, or clear it for the next round.');
     const name='Round-'+String(number).padStart(5,'0');
-    const prefix=inputs.id+'/Reviews/'+name+'/';
+    const archiveId=portfolioCase ? inputs.id+'_'+portfolioCase.id : inputs.id;
+    const prefix=archiveId+'/Reviews/'+name+'/';
     const files={};
     for(const [folder,b,j] of [['01 Sources',inputs.b,inputs.j],['03 Redacted',output.b,output.j]]){
       files[prefix+folder+'/Budget.xlsx']=b;files[prefix+folder+'/Justification.'+inputs.kind]=j;
@@ -233,7 +234,7 @@ $('backup').onclick=task($('backup'),async(current)=>{
     const portfolioRecord=portfolioCase?['Portfolio proposal ID: '+portfolioCase.id,'Portfolio revision on opening: '+portfolioCase.revision]:[];
     files[prefix+'Review record.txt']=[inputs.id,...portfolioRecord,name,new Date().toISOString(),inputs.budgetName,inputs.justName,submissionRecord(),lynnRecord(),'03 Redacted contains the approved copies.'].join('\n');
     for(const [title,text] of Object.entries(kit))files[prefix+'04 Review/'+title]=text;
-    downloadZip(files,'Private-'+inputs.id+'-'+name+'.zip');
+    downloadZip(files,'Private-'+archiveId+'-'+name+'.zip');
     localStorage.setItem(key,String(number));
     $('includeOriginals').checked=false;
     status('Private '+name+' backup download started. Store it in the restricted proposal folder.');
