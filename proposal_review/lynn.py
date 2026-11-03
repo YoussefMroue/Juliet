@@ -58,8 +58,11 @@ def protect_dependencies(book, plan):
         if re.search(rf':{SHEET}!', expression):
             raise Blocked('Blank cells cannot be checked against a cross-sheet range; prepare a safe source copy.')
         matches = list(REFERENCE.finditer(expression))
-        if '!' in REFERENCE.sub('', expression):
-            raise Blocked('Blank cells cannot be checked against this sheet reference; prepare a safe source copy.')
+        remainder = REFERENCE.sub('', expression)
+        if '!' in remainder or ':' in remainder:
+            # Excel permits spaces around range operators. Until those ranges
+            # are parsed completely, checking only their endpoints is unsafe.
+            raise Blocked('Blank cells cannot be checked against this sheet reference or range; prepare a safe source copy.')
         for match in matches:
             sheet = match['sheet']
             sheet = sheet[1:-1].replace("''", "'") if sheet and sheet.startswith("'") else sheet

@@ -121,6 +121,20 @@ class LynnBlankCells(unittest.TestCase):
         after = load_workbook(io.BytesIO(result))
         self.assertEqual(after['TU Year One']['D10'].value, "='Details'!C3")
 
+    def test_spaced_ranges_block_instead_of_checking_only_endpoints(self):
+        original = self.path.read_bytes()
+        for expression in ['=COUNTIF(A1 : A3,0)', '=COUNTIF(A : A,0)',
+                           '=COUNTIF(1 : 3,0)', '=COUNTIF(A1: A3,0)',
+                           "=COUNTIF('Project'!C1 : C5,0)"]:
+            with self.subTest(expression=expression):
+                book = load_workbook(io.BytesIO(original))
+                book['TU Year One']['D10'] = expression
+                book.save(self.path)
+                before = self.path.read_bytes()
+                with self.assertRaisesRegex(Blocked, 'sheet reference or range'):
+                    self.inspect()
+                self.assertEqual(self.path.read_bytes(), before)
+
     def test_lowercase_and_hidden_target_sheets_are_supported(self):
         book = load_workbook(self.path)
         book['Project'].title = 'Temporary project'
