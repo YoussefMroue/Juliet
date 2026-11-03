@@ -30,11 +30,11 @@ For development with an existing Python and Tk installation, run `py -3 -m propo
 
 ## Proposal and review folders
 
-Each proposal has a short title, a unique local ID, and optional proposal reference and sponsor. Open the same project for revisions. Each approval saves a new numbered round. **Open saved round** opens its documents in the file manager.
+Enter the sponsor initials and the original submission date. For example, NIH and November 3, 2026 create **NIH-2026-11-03**. A second proposal from NIH on that date gets **NIH-2026-11-03-02**. An optional title helps distinguish them in the picker. Open the same project for revisions. Each approval saves a new numbered round. **Open saved round** opens its documents in the file manager.
 
 ```text
 Local cases/
-  P-<id>-<title>/
+  NIH-2026-11-03/
     Inbox/
     Reviews/
       Round-00001/

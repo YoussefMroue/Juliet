@@ -21,7 +21,7 @@ class DesktopFlow(unittest.TestCase):
         location = tempfile.TemporaryDirectory()
         self.addCleanup(location.cleanup)
         app = App(root, location.name)
-        app.project = create_project(Path(location.name),'Synthetic case')
+        app.project = create_project(Path(location.name),'NIH','2026-11-03','Synthetic case')
         app.home()
         def widgets(parent):
             for child in parent.winfo_children():
@@ -77,7 +77,7 @@ class DesktopFlow(unittest.TestCase):
             root = tk.Tk()
             self.addCleanup(root.destroy)
             app = App(root, base/'projects')
-            app.project = create_project(app.local_cases,'PDF pilot')
+            app.project = create_project(app.local_cases,'NSF','2026-11-03','PDF pilot')
             app.home()
 
             def click(parent, caption):

@@ -4,6 +4,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 from proposal_review.case import Case
+from proposal_review.office import Blocked
 from proposal_review.projects import create_project, projects, review_rounds, save_round
 from .exercises import build
 
@@ -22,9 +23,11 @@ class ProjectTests(unittest.TestCase):
         self.results,_ = self.case.inspect([('Mira Example','Person 01')])
 
     def test_isolated_projects_and_versioned_documents(self):
-        first = create_project(self.root,'Same title','A-01')
-        second = create_project(self.root,'Same title','A-02')
-        self.assertEqual(len(projects(self.root)),2)
+        first = create_project(self.root,'nih','2026-11-03','First study')
+        second = create_project(self.root,'NIH','2026-11-03','Second study')
+        self.assertEqual(first.name,'NIH-2026-11-03')
+        self.assertEqual(second.name,'NIH-2026-11-03-02')
+        self.assertEqual(dict(projects(self.root)),{first.name+' · First study':first,second.name+' · Second study':second})
         one = save_round(first,self.case,self.results,KIT)
         notes = one/'04 Review'/'03-findings.md'
         notes.write_text('First-round corrections.',encoding='utf-8')
@@ -40,8 +43,19 @@ class ProjectTests(unittest.TestCase):
             self.assertEqual((rnd/'04 Review'/'03-findings.md').read_bytes(),(KIT/'03-findings.md').read_bytes())
             self.assertIn('input.xlsx',(rnd/'Review record.txt').read_text(encoding='utf-8'))
 
+    def test_input_validation_and_legacy_review(self):
+        for initials, submitted in [('N/I','2026-11-03'), ('NIH','2026-02-30'), ('NIH','20261103')]:
+            with self.subTest(initials=initials,submitted=submitted), self.assertRaises(Blocked):
+                create_project(self.root,initials,submitted)
+        legacy = self.root/'P-12345678-Pilot'
+        (legacy/'Reviews').mkdir(parents=True)
+        (legacy/'project.json').write_text('{"title":"Pilot","reference":"A","sponsor":"Foundation"}')
+        self.assertEqual(projects(self.root)[0][1],legacy)
+        self.assertIn('Proposal reference: A', (save_round(legacy,self.case,self.results,KIT)
+                      /'Review record.txt').read_text(encoding='utf-8'))
+
     def test_failed_or_concurrent_rounds(self):
-        project = create_project(self.root,'Pilot')
+        project = create_project(self.root,'NSF','2026-11-03')
         with self.assertRaises(OSError):
             save_round(project,self.case,self.results,self.root/'absent')
         self.assertEqual(list((project/'Reviews').iterdir()),[])

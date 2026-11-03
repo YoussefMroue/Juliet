@@ -1,25 +1,37 @@
 """Proposal folders and immutable, numbered review submissions on local disk."""
-from datetime import datetime
+from datetime import date, datetime
 import json
 from pathlib import Path
 import re
 import shutil
 import tempfile
-import uuid
 
 from .office import Blocked
 
 
-def create_project(root, title, reference='', sponsor=''):
-    title = title.strip()
-    if not title:
-        raise Blocked('Enter a project title.')
-    root.mkdir(parents=True, exist_ok=True)
-    slug = re.sub(r'[^A-Za-z0-9]+', '-', title).strip('-')[:36] or 'Project'
-    project = root / f'P-{uuid.uuid4().hex[:8]}-{slug}'
-    project.mkdir()
+def create_project(root, initials, submitted, title=''):
+    initials = initials.strip().upper()
+    submitted = submitted.strip()
+    if not re.fullmatch(r'[A-Z][A-Z0-9]{0,19}', initials):
+        raise Blocked('Enter sponsor initials using letters or digits, starting with a letter.')
     try:
-        record = {'title': title, 'reference': reference.strip(), 'sponsor': sponsor.strip()}
+        if date.fromisoformat(submitted).isoformat() != submitted:
+            raise ValueError
+    except ValueError:
+        raise Blocked('Enter a valid submission date in YYYY-MM-DD format.') from None
+    root.mkdir(parents=True, exist_ok=True)
+    base = f'{initials}-{submitted}'
+    project = root / base
+    sequence = 1
+    while True:
+        try:
+            project.mkdir()
+            break
+        except FileExistsError:
+            sequence += 1
+            project = root / f'{base}-{sequence:02d}'
+    try:
+        record = {'sponsor_initials': initials, 'submission_date': submitted, 'title': title.strip()}
         (project/'project.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
         (project/'Inbox').mkdir()
         (project/'Reviews').mkdir()
@@ -31,10 +43,13 @@ def create_project(root, title, reference='', sponsor=''):
 
 def projects(root):
     entries = []
-    for file in sorted(root.glob('P-*/project.json')):
+    for file in sorted(root.glob('*/project.json')):
         record = json.loads(file.read_text(encoding='utf-8'))
-        label = ' · '.join(filter(None, (record['title'], record['reference'], record['sponsor'],
-                                        file.parent.name[:10])))
+        if 'submission_date' in record:
+            label = ' · '.join(filter(None, (file.parent.name, record['title'])))
+        else:
+            label = ' · '.join(filter(None, (record['title'], record['reference'], record['sponsor'],
+                                            file.parent.name[:10])))
         entries.append((label, file.parent))
     return sorted(entries, key=lambda row: row[0].casefold())
 
@@ -67,14 +82,19 @@ def save_round(project, case, results, kit):
                 path = kit/(template+'.txt')
             shutil.copyfile(path,work/path.name)
         record = json.loads((project/'project.json').read_text(encoding='utf-8'))
-        date = datetime.now().astimezone().isoformat(timespec='seconds')
+        if 'submission_date' in record:
+            details = (f'Proposal ID: {project.name}\nSponsor initials: {record["sponsor_initials"]}\n'
+                       f'Submission date: {record["submission_date"]}\nTitle: {record["title"]}')
+        else:
+            details = (f'{record["title"]}\nProposal reference: {record["reference"]}\n'
+                       f'Sponsor: {record["sponsor"]}')
+        approved_at = datetime.now().astimezone().isoformat(timespec='seconds')
         rounds = review_rounds(project)
         number = int(rounds[-1].name[6:])+1 if rounds else 1
         while number <= 99999:
             dest = reviews/f'Round-{number:05}'
             (stage/'Review record.txt').write_text(
-                f'{record["title"]} | {dest.name}\nProposal reference: {record["reference"]}\n'
-                f'Sponsor: {record["sponsor"]}\nApproved local export: {date}\n\n'
+                f'{details}\n{dest.name}\nApproved local export: {approved_at}\n\n'
                 f'Original budget filename: {case.filenames[0]}\n'
                 f'Original justification filename: {case.filenames[1]}\n\n'
                 '01 Sources — original inputs saved locally.\n'

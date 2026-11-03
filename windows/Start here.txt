@@ -4,7 +4,7 @@ Keep the application folder together. Open Proposal Review.exe through your
 company's approved software process. The folder includes its own runtime.
 
 First practice run
-1. Create a proposal called Practice. Open Practice cases, then clean. In the app, choose input.xlsx as the budget
+1. Create a practice proposal using EX and 2026-11-03. Open Practice cases, then clean. In the app, choose input.xlsx as the budget
    and input.docx as the justification.
 2. Inspect the rules. For this fictional pair, replace Mira Example with Person 01,
    mira@example.invalid with Email 01, XQ-417 with ID 01, and MX with Initials 01.

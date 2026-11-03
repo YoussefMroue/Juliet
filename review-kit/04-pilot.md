@@ -4,7 +4,11 @@
 
 Lynn has approved Python on her company-managed Windows 11 machine and can install Python packages. She will clone the project onto her desktop and keep inputs and reviewed copies locally. Budgets arrive in Excel and justifications arrive in both Word and mostly selectable-text PDF. PDF output must retain the original page layout. Her rule is to remove full names and other obvious personal identifiers. The first walkthrough uses the fictional cases because a previously reviewed, de-identified proposal is currently unavailable. Collect answers from the project owner first. Take only unresolved workflow questions to Lynn and unresolved distribution or data-handling questions to the appropriate company contact.
 
+Proposals are identified by sponsor initials and original submission date, separated by dashes.
+
 ## Open questions
+
+Can a single review round contain multiple budgets or justifications? The pilot currently handles one pair per round.
 
 1. For eventual reviewer acceptance, can Lynn compare the tool’s findings with a previously reviewed case within her approved working environment?
 2. Do budgets have protection, macros, links or comments?

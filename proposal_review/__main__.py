@@ -52,13 +52,13 @@ class App:
         chooser.bind('<<ComboboxSelected>>', choose_project)
         form = ttk.LabelFrame(self.body,text='New proposal')
         form.pack(fill='x',pady=8)
-        title,reference,sponsor = tk.StringVar(),tk.StringVar(),tk.StringVar()
-        for caption,var in [('Short title',title),('Proposal ID',reference),('Sponsor',sponsor)]:
+        initials,submitted,title = tk.StringVar(),tk.StringVar(),tk.StringVar()
+        for caption,var in [('Sponsor initials',initials),('Submitted (YYYY-MM-DD)',submitted),('Title (optional)',title)]:
             ttk.Label(form,text=caption).pack(side='left',padx=3)
             ttk.Entry(form,textvariable=var,width=20).pack(side='left')
         def create():
             try:
-                self.project = create_project(self.local_cases,title.get(),reference.get(),sponsor.get())
+                self.project = create_project(self.local_cases,initials.get(),submitted.get(),title.get())
                 self.home()
             except (Blocked,OSError) as exc:
                 self.error(exc)
