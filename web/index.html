@@ -1,13 +1,51 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proposal Review</title><link rel="stylesheet" href="style.css"><script defer src="pdf-lib/pdf-lib.min.js"></script><script type="module" src="app.js"></script></head><body><main>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proposal Review</title><link rel="stylesheet" href="style.css"><script defer src="pdf-lib/pdf-lib.min.js"></script><script type="module" src="case-ui.js"></script><script type="module" src="app.js"></script></head><body><main>
 <header><span>SPONSORED PROJECTS</span><h1>Proposal review</h1><p>Inspect a budget and its justification together. Files are processed on this device.</p></header>
+<div role="tablist" aria-label="Proposal workspace">
+<button type="button" role="tab" id="caseTab" aria-controls="casePanel" aria-selected="true">Proposal</button>
+<button type="button" role="tab" id="guidelinesTab" aria-controls="guidelinesPanel" aria-selected="false" tabindex="-1">Guidelines</button>
+</div>
+<div role="tabpanel" id="casePanel" aria-labelledby="caseTab" tabindex="0">
 <p id="status" role="status">Loading local inspection tools…</p>
 <form id="inputs"><fieldset disabled id="pick"><legend>1 · Select a proposal</legend><div class="row"><label>Sponsor initials<input id="sponsor" required pattern="[A-Za-z][A-Za-z0-9]{0,19}" placeholder="NIH"></label><label>Submission date<input id="date" type="date" required></label><label>Proposal on this date<input id="sequence" type="number" min="1" max="999" value="1" required></label></div><label>Excel budget<input id="budget" type="file" accept=".xlsx" required></label><label>Word or selectable-text PDF justification<input id="justification" type="file" accept=".docx,.pdf" required></label><p>If a PDF uses drawings or custom fonts, choose the original Word justification or a cleaned source copy.</p><button>Inspect files</button></fieldset></form>
+<section hidden id="submission"><h2>Submission status</h2><p id="submissionCase"></p>
+<label for="submissionStatus">Your status for this proposal</label>
+<select id="submissionStatus" aria-describedby="submissionMeaning submissionStorage">
+<option value="not-set">Not set</option><option value="drafting">Drafting</option><option value="ready">Ready for submission</option><option value="submitted">Submitted</option><option value="withdrawn">Withdrawn</option>
+</select>
+<p id="submissionMeaning">Set this yourself. It does not submit files, confirm sponsor receipt, or indicate compliance or review approval. Inspecting and exporting files never changes it.</p>
+<p id="submissionStorage">Kept only in this open case. Closing or reloading clears it; it does not sync to another tab, browser or device. An explicit private backup includes a status snapshot in its review record. The approved handoff ZIP does not.</p>
+</section>
 <section hidden id="review"><h2>2 · Review identifiers</h2><p>Choose which terms to redact. Keep roles and budget amounts that Lynn needs for review.</p><details><summary>Read original text and locations</summary><pre id="original"></pre></details><div id="rules"></div><button id="add">Add identifier</button> <button id="inspect">Preview redacted copies</button></section>
 <section hidden id="preview"><h2>3 · Inspect and save</h2><pre id="changes"></pre><details><summary>Inspect redacted Office content</summary><pre id="checked"></pre></details><div id="pages"></div><label><input type="checkbox" id="approved"> I inspected both copies and approve saving them.</label>
 <button id="save">Download approved files</button><p>The handoff ZIP contains the approved budget and justification.</p>
 <details id="privateBackup"><summary>Private backup with original files</summary>
-<p>Use a restricted local folder. This archive includes both originals, source filenames, approved files and the review record.</p>
+<p>Use a restricted local folder. This archive includes both originals, source filenames, approved files and the review record, including your submission status.</p>
 <label>Private review round (blank for next on this browser)<input id="round" type="number" min="1" max="99999"></label>
 <label><input type="checkbox" id="includeOriginals"> Include the original documents in my private backup.</label>
 <button id="backup">Download private backup with originals</button></details></section>
-<button hidden id="reset">Close case</button></main></body></html>
+<button hidden id="reset">Close case</button>
+</div>
+<div role="tabpanel" id="guidelinesPanel" aria-labelledby="guidelinesTab" tabindex="0" hidden>
+<section><h2>Government guidelines</h2>
+<p><strong>Reference list for manual review.</strong> The app currently inspects and redacts documents. It does not apply these sources as automated compliance rules or establish compliance. This starter list will expand when the full requirements are supplied.</p>
+<p>Links checked November 3, 2026. These official publisher pages point to current guidance; the applicable edition depends on the opportunity, due date, recipient and award. Recheck updates before each review. The app does not refresh guidance automatically.</p>
+<article><h3><a href="https://www.ecfr.gov/current/title-2/subtitle-A/chapter-II/part-200/subpart-E" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">2 CFR Part 200, Subpart E — Cost Principles</a></h3>
+<p>Federal cost principles, including allowability, reasonableness and allocation (§§ 200.403–200.405). Confirm applicability and exceptions under § 200.401 and the agency’s award terms; this is not a universal proposal checklist. The eCFR is authoritative but is not the official legal edition.</p>
+<p>Version observed: Title 2 current through October 30, 2026; last amended August 17, 2026.</p></article>
+<article><h3><a href="https://grants.nih.gov/grants-process/write-application/how-to-apply-application-guide" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">NIH — How to Apply: Application Guide</a></h3>
+<p>Form and attachment instructions. Choose the instructions for the activity code and due date, then check the specific funding opportunity and applicable NIH notices.</p>
+<p>Version observed: SF424 (R&amp;R), Version I, for due dates on or after January 25, 2025; general instructions updated December 2025.</p></article>
+<article><h3><a href="https://grants.nih.gov/grants-process/write-application/advice-on-application-sections/develop-your-budget" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">NIH — Develop Your Budget</a></h3>
+<p>Budget preparation guidance covering detailed and modular budgets, justifications and cost considerations. These tips do not supersede the applicable application instructions. Verify ceilings, salary limits and rates for the actual opportunity and period; no amounts are built into this app.</p>
+<p>Version: living guidance page checked November 3, 2026.</p></article>
+<h3>Requirements still needed for each proposal</h3>
+<p>Keep the solicitation or funding opportunity, amendments, applicable notices and exact budget sections in the round’s <strong>02 Guidance</strong> folder. Record versions, effective dates, direct versus total cost ceilings and whether each limit covers one period or the full award.</p>
+<p>Tulane’s institutional requirements, rates and exceptions must be supplied and confirmed separately. They are not inferred from these federal references. Record missing or conflicting guidance as a question for the reviewer before reaching a determination.</p>
+<p>Opening a source makes an external network request in a new tab. Browsing this list itself works offline after the app loads and sends no proposal content.</p>
+</section></div>
+</main>
+<footer class="feedback-bar">
+<a id="feedback" href="mailto:ymroue9@gmail.com" aria-label="Email feedback to ymroue9@gmail.com" aria-describedby="feedbackHelp" title="Open your email app to send feedback to ymroue9@gmail.com">Feedback <span aria-hidden="true">↗</span></a>
+<span id="feedbackHelp" class="visually-hidden">Opens your email app. No proposal details are included. You review and send the email.</span>
+</footer>
+</body></html>

@@ -1,5 +1,6 @@
 import {loadPyodide} from './pyodide/pyodide.mjs';
 import {readPdf,redactPdf} from './pdf.js';
+import {startSubmission,submissionRecord} from './case-ui.js';
 const $=id=>document.getElementById(id);
 const status=message=>{$('status').textContent=message;};
 let py,kit,inputs,output;
@@ -55,6 +56,7 @@ $('inputs').onsubmit=task($('pick'),async()=>{
   const suffix=Number($('sequence').value);
   const id=$('sponsor').value.toUpperCase()+'-'+$('date').value+(suffix>1?'-'+String(suffix).padStart(2,'0'):'');
   inputs={id,b,j,kind,pages,budgetName:budget.name,justName:just.name};
+  startSubmission(id);
   $('original').textContent=rows.map(([loc,v])=>loc+'   '+v).join('\n');
   $('rules').replaceChildren();
   for(const [t,l] of JSON.parse(call('suggestions',JSON.stringify(rows))))rule(t,l);
@@ -119,7 +121,7 @@ $('backup').onclick=task($('backup'),async()=>{
       files[prefix+folder+'/Budget.xlsx']=b;files[prefix+folder+'/Justification.'+inputs.kind]=j;
     }
     files[prefix+'02 Guidance/']='';
-    files[prefix+'Review record.txt']=[inputs.id,name,new Date().toISOString(),inputs.budgetName,inputs.justName,'03 Redacted contains the approved copies.'].join('\n');
+    files[prefix+'Review record.txt']=[inputs.id,name,new Date().toISOString(),inputs.budgetName,inputs.justName,submissionRecord(),'03 Redacted contains the approved copies.'].join('\n');
     for(const [title,text] of Object.entries(kit))files[prefix+'04 Review/'+title]=text;
     downloadZip(files,'Private-'+inputs.id+'-'+name+'.zip');
     localStorage.setItem(key,String(number));

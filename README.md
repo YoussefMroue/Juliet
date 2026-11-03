@@ -16,6 +16,16 @@ The browser entry point is `web/app.js`. Pyodide runs the Python Office inspecto
 
 Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a deployment dry run. The production gateway requires the configured Access issuer, application audience and a private `REVIEW_EMAILS` binding. Protect the custom domain with the matching Access policy. Public Workers and preview hostnames are disabled. A developer can exercise the local browser app with `node web/test.mjs <synthetic-fixture-directory> <temporary-output-directory>` after installing Playwright Chromium, or set `PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome. The ZIP checks use Python 3 (`PYTHON` can specify the executable). The input directory must contain the fictional input.xlsx and input.docx from tests/exercises.py and input.pdf from tests/test_pdf.py.
 
+### Submission status and guidelines
+
+The **Feedback** bubble is available throughout the browser app, including Guidelines and file review. It opens your configured email app addressed to `ymroue9@gmail.com`, with no subject, message body, attachments or case details added. You write, review and send the message yourself. If no email app is configured, compose an email to that address manually. The app does not send feedback or collect telemetry.
+
+After inspecting a pair, set its **Submission status** yourself. It is separate from redaction approval, compliance and sponsor receipt. It stays only in the open case and clears on close/reload; it does not sync to another tab or device. An explicitly requested private backup includes a status snapshot in `Review record.txt`. The two-file handoff never includes status. The existing private-round counter still stores the proposal ID and last round in this browser profile.
+
+The **Guidelines** tab offers three official reference links for manual review, with check dates and applicability notes. The app does not apply them as automated compliance rules. The list works offline; opening a link visits the publisher in a new tab. Supply each proposal's solicitation, amendments, relevant notices and confirmed Tulane requirements separately.
+
+See the [secure organization plan](review-kit/05-organization-plan.md) for the proposed local workflow, source research and remaining decisions. This feature adds no backend or automatic document storage.
+
 ## Windows 11 pilot
 
 Clone the repository into a local folder on Lynn’s Windows 11 desktop. From the cloned folder, use her approved Python 3.10 or newer with Tk. In PowerShell:
@@ -82,6 +92,7 @@ Unsupported parts or features block the pair with a location. Examples include m
 - [Reusable review instructions](review-kit/02-review-instructions.md)
 - [Findings template](review-kit/03-findings.md)
 - [Pilot questions, exercise answer key and acceptance](review-kit/04-pilot.md)
+- [Proposal organization plan and submission status](review-kit/05-organization-plan.md)
 
 ## Test and rehearse
 
