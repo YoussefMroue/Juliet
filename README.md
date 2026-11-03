@@ -1,8 +1,18 @@
 # Proposal Review
 
-A local desktop pilot for inspecting a grant budget and its written justification before manual compliance review.
+Inspect a grant budget and its justification in the private browser app or the original desktop pilot.
 
 **Choose two files → review identifiers → inspect changes → approve local copies → hand off manually.**
+
+## Browser app
+
+Open **https://review.ymroue.com** and sign in. Once the app says it is ready, documents can be selected and processed offline. Choose one Excel budget and one Word or selectable-text PDF. Review the locations, choose which identifiers to replace, then inspect the approved copies. PDFs with scans, signatures, embedded objects or unsupported layouts require source cleanup.
+
+**Download review round** writes an organized ZIP containing both the original and redacted pairs, the review kit and the review record. Extract it in the local proposal folder. Only the contents of **03 Redacted** are intended for manual handoff. The next round number is tracked per project in the current browser profile. On a different device or profile, enter the appropriate next round number. Use the proposal sequence field for separate submissions from the same sponsor on the same day.
+
+The browser entry point is `web/app.js`. Pyodide runs the Python Office inspector in the tab through `web/bridge.py`. For PDFs, `web/pdf.js` uses MuPDF to remove matched page content and builds a new document from rendered pages, selectable text and replacement labels. `web/gateway.js` verifies the sign-in token and allowed email before serving any site asset. The Worker accepts GET and HEAD only. The app has no document upload endpoint or server-side case storage.
+
+Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a deployment dry run. The production gateway requires the configured Access issuer, application audience and a private `REVIEW_EMAILS` binding. Protect the custom domain with the matching Access policy. Public Workers and preview hostnames are disabled. A developer can exercise the local browser app with `node web/test.mjs <synthetic-fixture-directory> <temporary-output-directory>` after installing Playwright Chromium. The input directory must contain the fictional input.xlsx and input.docx from tests/exercises.py and input.pdf from tests/test_pdf.py.
 
 ## Windows 11 pilot
 
