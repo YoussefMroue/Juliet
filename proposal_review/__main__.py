@@ -18,7 +18,7 @@ class App:
         self.local_cases = Path(case_folder) if case_folder else project / 'Local cases'
         self.project = None
         self.kit = project / ('Review kit' if getattr(sys, 'frozen', False) else 'review-kit')
-        root.title('Proposal Review')
+        root.title('Juliet | Personal Proposal Reviewer')
         root.geometry('1080x740')
         self.body = ttk.Frame(root, padding=16)
         self.body.pack(expand=True, fill='both')
@@ -40,7 +40,8 @@ class App:
         self.case = self.results = None
         self.rules = {}
         self.pending = {}
-        ttk.Label(self.body, text='Proposal Review', font=('TkDefaultFont', 22, 'bold')).pack(anchor='w')
+        ttk.Label(self.body, text='Juliet', font=('TkDefaultFont', 22, 'bold')).pack(anchor='w')
+        ttk.Label(self.body, text='Personal Proposal Reviewer').pack(anchor='w')
         entries = dict(projects(self.local_cases))
         selected = tk.StringVar(value=next((name for name,path in entries.items() if path == self.project),''))
         ttk.Label(self.body,text='Open a proposal to see its reviews or start another round.').pack(anchor='w',pady=8)

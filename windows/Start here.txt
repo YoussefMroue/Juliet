@@ -1,6 +1,9 @@
-Proposal Review | Windows 11 pilot
+Juliet
+Personal Proposal Reviewer
 
-Keep the application folder together. Open Proposal Review.exe through your
+Windows 11 pilot
+
+Keep the application folder together. Open Juliet.exe through your
 company's approved software process. The folder includes its own runtime.
 
 First practice run

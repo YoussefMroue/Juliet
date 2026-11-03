@@ -1,16 +1,25 @@
-# Proposal Review
+# Juliet
 
-Inspect a grant budget and its justification in the private browser app or the original desktop pilot.
+**Personal Proposal Reviewer**
 
-**Choose two files → review identifiers → inspect changes → approve local copies → hand off manually.**
+Manage a portfolio of proposals locally. Each proposal has a document inventory, deadlines, a next action and numbered review rounds. The browser can also prepare a redacted budget and justification. The original desktop pilot supports that paired-file workflow.
+
+## Portfolio and reviewer rehearsal
+
+1. Open **Portfolio** in a supported desktop browser and choose a restricted, non-synced working folder. Juliet writes its journal in a dedicated `Juliet Portfolio` subfolder. Reopen the same folder to resume. Use one device and browser profile for this pilot. The journal is plaintext on disk and relies on the operating system for access control.
+2. Create a proposal, set its deadlines and time zones, and add the required documents. Record a new version when a document changes. A round freezes the inventory and its version labels. Open a separate proposal for a different submission, even when sponsor, date and filenames match.
+3. For a **fictional** practice review, choose **Review this round**. Enter only the invented passages Lynn has selected from that round and their locations. Include applicable fictional opportunity guidance. Approve the displayed excerpts and download the numbered-item JSON packet. This packet contains the excerpt text. Other source contents and the identity map stay outside it.
+4. Open a fresh chat with the **Juliet** reviewer plugin and manually attach the fictional packet. Save its returned findings JSON. In the same round choose the registered packet and report, check the citations and reasoning, then save the report. Lynn records her own disposition. An import or review decision never submits documents or changes proposal status.
+
+The plugin source is in [reviewer/juliet](reviewer/juliet). Its release and report format must match the browser validator. This first release accepts fictional excerpts only. Calculations in a workbook still require independent verification in Excel. Institutional approval and named access must be established before any real proposal handoff.
 
 ## Browser app
 
-Open **https://review.ymroue.com** and sign in. Once the app says it is ready, documents can be selected and processed offline. Choose one Excel budget and one Word or selectable-text PDF. Review the locations, choose which identifiers to replace, then inspect the approved copies. PDFs with scans, signatures, embedded objects or unsupported layouts require source cleanup.
+The existing production address is **https://review.ymroue.com**. For a paired-file review, open the file preparation view. Once the app says it is ready, documents can be selected and processed offline. Choose one Excel budget and one Word or selectable-text PDF. Review the locations, choose which identifiers to replace, then inspect the approved copies. PDFs with scans, signatures, embedded objects or unsupported layouts require source cleanup.
 
 **Download approved files** saves `Approved-files.zip` with exactly two files, `Budget.xlsx` and `Justification.docx` or `Justification.pdf`. Open both locally before handing them off to the approved reviewer.
 
-For internal recordkeeping, expand **Private backup with original files**, confirm that the backup should include both originals, and save it in the restricted proposal folder. This separate archive contains both document pairs, the review kit and the record with source filenames. Only the private backup uses the per-project round counter. On a different device or profile, enter the appropriate next round number. Use the proposal sequence field for separate submissions from the same sponsor on the same day.
+For internal recordkeeping, expand **Private backup with original files**, confirm that the backup should include both originals, and save it in the restricted proposal folder. This separate archive contains both document pairs, the review kit and the record with source filenames. Only the private backup uses the per-project round counter. When you start from Portfolio, the ZIP name and its top folder include the permanent proposal ID so backups stay separate even when two proposals have the same display label. On a different device or profile, enter the appropriate next round number. Use the proposal sequence field for separate submissions from the same sponsor on the same day.
 
 The browser entry point is `web/app.js`. Pyodide runs the Python Office inspector in the tab through `web/bridge.py`. For PDFs, `web/pdf.js` uses MuPDF to remove matched page content and builds a new document from rendered pages, selectable text and replacement labels. `web/gateway.js` verifies the sign-in token and allowed email before serving any site asset. The Worker accepts GET and HEAD only. The app has no document upload endpoint or server-side case storage.
 
@@ -22,7 +31,7 @@ For a fictional rehearsal of Lynn's NIH R01 process, select **Use Lynn’s NIH R
 
 The **Feedback** bubble is available throughout the browser app, including Guidelines and file review. It opens your configured email app addressed to `ymroue9@gmail.com`, with no subject, message body, attachments or case details added. You write, review and send the message yourself. If no email app is configured, compose an email to that address manually. The app does not send feedback or collect telemetry.
 
-After inspecting a pair, set its **Submission status** yourself. It is separate from redaction approval, compliance and sponsor receipt. It stays only in the open case and clears on close/reload; it does not sync to another tab or device. An explicitly requested private backup includes a status snapshot in `Review record.txt`. The two-file handoff never includes status. The existing private-round counter still stores the proposal ID and last round in this browser profile.
+For standalone preparation, **Submission status** stays in the open case and clears on close or reload. When preparation is opened from a portfolio proposal, it displays that proposal’s status at selection time. Update the durable status in Portfolio. An explicitly requested private backup includes a status snapshot in `Review record.txt`. The approved two-file handoff excludes status. Private-round counters are scoped to this browser profile.
 
 The **Guidelines** tab offers three official reference links for manual review, with check dates and applicability notes. The app does not apply them as automated compliance rules. The list works offline; opening a link visits the publisher in a new tab. Supply each proposal's solicitation, amendments, relevant notices and confirmed Tulane requirements separately.
 
@@ -48,7 +57,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe windows/build.py
 ```
 
-The builder runs the tests, including the desktop workflow, before creating the self-contained folder in `dist/Proposal Review`. Keep the entire folder together. On a representative Windows 11 machine, run the packaged executable as a standard user and complete the included practice run in Excel and Word. Apply the company’s signing and distribution requirements once confirmed. [Windows build requirements](https://pyinstaller.org/en/stable/index.html)
+The builder runs the tests, including the desktop workflow, before creating the self-contained folder in `dist/Juliet`. Keep the entire folder together. On a representative Windows 11 machine, run the packaged executable as a standard user and complete the included practice run in Excel and Word. Apply the company’s signing and distribution requirements once confirmed. [Windows build requirements](https://pyinstaller.org/en/stable/index.html)
 
 For development with an existing Python and Tk installation, run `py -3 -m proposal_review` on Windows or `python3 -m proposal_review` on macOS or Linux.
 
@@ -94,7 +103,7 @@ Unsupported parts or features block the pair with a location. Examples include m
 - [Reusable review instructions](review-kit/02-review-instructions.md)
 - [Findings template](review-kit/03-findings.md)
 - [Pilot questions, exercise answer key and acceptance](review-kit/04-pilot.md)
-- [Proposal organization plan and submission status](review-kit/05-organization-plan.md)
+- [Original organization plan and standalone submission status](review-kit/05-organization-plan.md)
 - [Lynn's NIH R01 workflow and source limitations](review-kit/06-lynn-r01-workflow.md)
 
 ## Test and rehearse

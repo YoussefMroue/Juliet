@@ -1,19 +1,32 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Proposal Review</title><link rel="stylesheet" href="style.css"><script defer src="pdf-lib/pdf-lib.min.js"></script><script type="module" src="case-ui.js"></script><script type="module" src="app.js"></script></head><body><main>
-<header><span>SPONSORED PROJECTS</span><h1>Proposal review</h1><p>Inspect a budget and its justification together. Files are processed on this device.</p></header>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Juliet · Personal Proposal Reviewer</title><link rel="stylesheet" href="style.css"><script defer src="pdf-lib/pdf-lib.min.js"></script><script type="module" src="app.js"></script></head><body><main>
+<header class="masthead">
+  <div class="brand"><div class="brand-mark" aria-hidden="true">J</div>
+    <div><h1>Juliet</h1><p>Personal Proposal Reviewer</p></div>
+  </div>
+  <span class="device-note"><span aria-hidden="true"></span> Local workspace</span>
+</header>
 <div role="tablist" aria-label="Proposal workspace">
-<button type="button" role="tab" id="caseTab" aria-controls="casePanel" aria-selected="true">Proposal</button>
+<button type="button" role="tab" id="portfolioTab" aria-controls="portfolioPanel" aria-selected="true">Portfolio</button>
+<button type="button" role="tab" id="caseTab" aria-controls="casePanel" aria-selected="false" tabindex="-1">Prepare files</button>
 <button type="button" role="tab" id="guidelinesTab" aria-controls="guidelinesPanel" aria-selected="false" tabindex="-1">Guidelines</button>
 </div>
-<div role="tabpanel" id="casePanel" aria-labelledby="caseTab" tabindex="0">
+<div role="tabpanel" id="portfolioPanel" aria-labelledby="portfolioTab" tabindex="0">
+<div id="portfolio"></div>
+<section id="round-exchange" hidden></section>
+<noscript>Enable JavaScript to open your local portfolio.</noscript></div>
+<div role="tabpanel" id="casePanel" aria-labelledby="caseTab" tabindex="0" hidden>
+<div class="panel-heading"><p class="eyebrow">Document preparation</p><h2>Prepare files</h2><p>Inspect one budget and its matching justification on this device. You choose which identifiers to remove and which copies to save.</p></div>
+<p id="boundCase" class="context-note" hidden></p>
 <p id="status" role="status">Loading local inspection tools…</p>
 <form id="inputs"><fieldset disabled id="pick"><legend>1 · Select a proposal</legend><div class="row"><label>Sponsor initials<input id="sponsor" required pattern="[A-Za-z][A-Za-z0-9]{0,19}" placeholder="NIH"></label><label>Submission date<input id="date" type="date" required></label><label>Proposal on this date<input id="sequence" type="number" min="1" max="999" value="1" required></label></div><label>Excel budget<input id="budget" type="file" accept=".xlsx" required></label><label>Word or selectable-text PDF justification<input id="justification" type="file" accept=".docx,.pdf" required></label><p>If a PDF uses drawings or custom fonts, choose the original Word justification or a cleaned source copy.</p><button>Inspect files</button></fieldset></form>
 <section hidden id="submission"><h2>Submission status</h2><p id="submissionCase"></p>
-<label for="submissionStatus">Your status for this proposal</label>
+<div id="standaloneStatus"><label for="submissionStatus">Your status for this proposal</label>
 <select id="submissionStatus" aria-describedby="submissionMeaning submissionStorage">
 <option value="not-set">Not set</option><option value="drafting">Drafting</option><option value="ready">Ready for submission</option><option value="submitted">Submitted</option><option value="withdrawn">Withdrawn</option>
 </select>
 <p id="submissionMeaning">Set this yourself. It does not submit files, confirm sponsor receipt, or indicate compliance or review approval. Inspecting and exporting files never changes it.</p>
-<p id="submissionStorage">Kept only in this open case. Closing or reloading clears it; it does not sync to another tab, browser or device. An explicit private backup includes a status snapshot in its review record. The approved handoff ZIP does not.</p>
+<p id="submissionStorage">Kept in this open case until you close or reload. You can save a status snapshot in a private backup.</p></div>
+<p id="boundStatus" hidden></p>
 </section>
 <section hidden id="review"><h2>2 · Review identifiers</h2><p>Choose which terms to redact. Keep roles and budget amounts that Lynn needs for review.</p>
 <label><input type="checkbox" id="useLynnWorkflow" aria-describedby="lynnPilotNotice"> Use Lynn’s NIH R01 checklist for this case</label>
@@ -37,7 +50,7 @@
 <p>These are your confirmations, not automated validation or compliance approval. The checklist and entered identifiers stay in this open case only. A private backup records the completed checklist without separately listing these identifiers.</p>
 </div>
 <details><summary>Read original text and locations</summary><pre id="original"></pre></details><div id="rules"></div><button id="add">Add identifier</button> <button id="inspect">Preview redacted copies</button></section>
-<section hidden id="preview"><h2>3 · Inspect and save</h2><pre id="changes"></pre><details><summary>Inspect redacted Office content</summary><pre id="checked"></pre></details><div id="pages"></div><label><input type="checkbox" id="approved"> I inspected both copies and approve saving them.</label>
+<section hidden id="preview"><h2>3 · Inspect and save</h2><p id="exportCase" class="context-note"></p><pre id="changes"></pre><details><summary>Inspect redacted Office content</summary><pre id="checked"></pre></details><div id="pages"></div><label><input type="checkbox" id="approved"> I inspected both copies and approve saving them.</label>
 <button id="save">Download approved files</button><p>The handoff ZIP contains the approved budget and justification.</p>
 <details id="privateBackup"><summary>Private backup with original files</summary>
 <p>Use a restricted local folder. This archive includes both originals, source filenames, approved files and the review record, including your submission status.</p>
@@ -47,6 +60,7 @@
 <button hidden id="reset">Close case</button>
 </div>
 <div role="tabpanel" id="guidelinesPanel" aria-labelledby="guidelinesTab" tabindex="0" hidden>
+<div class="panel-heading"><p class="eyebrow">Reference shelf</p><h2>Guidelines</h2><p>Find official sources, then record the edition and sections that apply to your proposal.</p></div>
 <section><h2>Government guidelines</h2>
 <p><strong>Reference list for manual review.</strong> The app currently inspects and redacts documents. It does not apply these sources as automated compliance rules or establish compliance. This starter list will expand when the full requirements are supplied.</p>
 <p>Links checked November 3, 2026. These official publisher pages point to current guidance; the applicable edition depends on the opportunity, due date, recipient and award. Recheck updates before each review. The app does not refresh guidance automatically.</p>

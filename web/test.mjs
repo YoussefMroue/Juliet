@@ -33,6 +33,207 @@ const server=createServer(async(req,res)=>{
 await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
 const browser=await chromium.launch({channel:process.env.PLAYWRIGHT_CHANNEL,executablePath:process.env.PLAYWRIGHT_EXECUTABLE_PATH});
 try{
+  // Only the native folder picker is substituted; Chromium performs real file writes
+  // and Web Locks on an isolated test directory in its temporary profile.
+  const portfolioContext=await browser.newContext();
+  await portfolioContext.addInitScript(()=>{
+    window.showDirectoryPicker=async()=>navigator.storage.getDirectory();
+  });
+  const portfolioPage=await portfolioContext.newPage();
+  const standalonePage=await portfolioContext.newPage();
+  await portfolioPage.goto('http://127.0.0.1:'+server.address().port);
+  await portfolioPage.waitForFunction(()=>!document.querySelector('#pick').disabled);
+  await standalonePage.goto(portfolioPage.url());
+  await standalonePage.waitForFunction(()=>!document.querySelector('#pick').disabled);
+  await portfolioContext.setOffline(true);
+  const portfolioRequests=[];
+  for(const page of [portfolioPage,standalonePage])page.on('request',request=>portfolioRequests.push(request.url()));
+  const portfolio=portfolioPage.locator('#portfolio');
+  const portfolioButton=name=>portfolio.getByRole('button',{name,exact:true});
+  await portfolioButton('Open portfolio folder').click();
+  const first='NIH-2026-11-03', second='NIH-2026-11-03-02';
+  for(const [index,label] of [first,second].entries()){
+    await portfolio.getByText('Create a proposal',{exact:true}).click();
+    const create=portfolio.locator('form').filter({has:portfolioPage.getByRole('button',{name:'Create proposal',exact:true})});
+    await create.getByLabel('Sponsor initials').fill('NIH');
+    await create.getByLabel('Original submission date').fill('2026-11-03');
+    await create.getByLabel('Proposal sequence').fill(String(index+1));
+    await create.getByLabel('Next action').fill(index===0?'Check salary totals':'Check subaward roster');
+    await create.getByLabel('Proposal status').selectOption(index===0?'In review':'Drafting');
+    await create.getByRole('button',{name:'Create proposal',exact:true}).click();
+    await portfolio.getByRole('heading',{name:label+' workspace',exact:true}).waitFor();
+  }
+  await portfolioButton('Open '+first).click();
+  const ownerText=await portfolio.getByText(/^Proposal ID /).innerText();
+  const owner=ownerText.match(/^Proposal ID ([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/)[1];
+  await portfolioButton('Prepare budget and justification').click();
+  assert.match(await portfolioPage.locator('#boundCase').textContent(),new RegExp(first));
+  assert.equal(await portfolioPage.locator('#sponsor').isEditable(),false);
+  await portfolioPage.locator('#budget').setInputFiles(path.join(fixture,'input.xlsx'));
+  await portfolioPage.locator('#justification').setInputFiles(path.join(fixture,'input.docx'));
+  await portfolioPage.getByRole('button',{name:'Inspect files',exact:true}).click();
+  await portfolioPage.locator('#review').waitFor();
+  assert.match(await portfolioPage.locator('#boundStatus').textContent(),/In review/);
+  for(const choice of await portfolioPage.locator('.rule select').all())await choice.selectOption('keep');
+  await portfolioPage.locator('#inspect').click();
+  await portfolioPage.locator('#approved').check();
+  // Both tabs share the real origin, Web Locks and localStorage. They deliberately
+  // use the same sponsor/date/sequence, but only one is bound to the portfolio.
+  await standalonePage.getByRole('tab',{name:'Prepare files',exact:true}).click();
+  await standalonePage.locator('#sponsor').fill('NIH');
+  await standalonePage.locator('#date').fill('2026-11-03');
+  await standalonePage.locator('#budget').setInputFiles({name:'standalone-source.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:await readFile(path.join(fixture,'input.xlsx'))});
+  await standalonePage.locator('#justification').setInputFiles(path.join(fixture,'input.docx'));
+  await standalonePage.getByRole('button',{name:'Inspect files',exact:true}).click();
+  await standalonePage.locator('#review').waitFor();
+  for(const choice of await standalonePage.locator('.rule select').all())await choice.selectOption('keep');
+  await standalonePage.locator('#inspect').click();
+  await standalonePage.locator('#approved').check();
+  for(const page of [standalonePage,portfolioPage])await page.locator('#privateBackup summary').click();
+  async function privateExport(page) {
+    await page.locator('#includeOriginals').check();
+    const [file]=await Promise.all([page.waitForEvent('download',{timeout:10000}),page.locator('#backup').click()]);
+    return file;
+  }
+  async function checkPrivate(file,isBound,round) {
+    const roundName='Round-'+String(round).padStart(5,'0');
+    const folder=isBound ? first+'_'+owner : first;
+    assert.equal(file.suggestedFilename(),'Private-'+folder+'-'+roundName+'.zip');
+    const saved=await file.path();
+    const prefix=folder+'/Reviews/'+roundName+'/';
+    const entries=Object.keys(zipContents(saved));
+    assert(entries.length>0 && entries.every(name=>name.startsWith(prefix)));
+    const record=zipText(saved,prefix+'Review record.txt').split('\n');
+    assert(record.includes(first) && record.includes(roundName));
+    assert.equal(record.includes('Portfolio proposal ID: '+owner),isBound);
+    assert(record.includes(isBound?'input.xlsx':'standalone-source.xlsx'));
+  }
+  await checkPrivate(await privateExport(standalonePage),false,1);
+  await checkPrivate(await privateExport(portfolioPage),true,1);
+  const [legacyBackup,boundBackup]=await Promise.all([privateExport(standalonePage),privateExport(portfolioPage)]);
+  await checkPrivate(legacyBackup,false,2);
+  await checkPrivate(boundBackup,true,2);
+  const counters=await standalonePage.evaluate(()=>({...localStorage}));
+  assert.deepEqual(counters,{['proposal-review:last-round:'+first]:'2',['proposal-review:last-round:'+owner]:'2'});
+  await standalonePage.close();
+  await portfolioPage.getByRole('tab',{name:'Portfolio',exact:true}).click();
+  await portfolioButton('Open '+second).click();
+  await portfolioButton('Prepare budget and justification').click();
+  assert.match(await portfolioPage.locator('#boundCase').textContent(),new RegExp(second));
+  assert.equal(await portfolioPage.locator('#sequence').inputValue(),'2');
+  assert.equal(await portfolioPage.locator('#budget').inputValue(),'');
+  assert.equal(await portfolioPage.locator('#justification').inputValue(),'');
+  assert.equal(await portfolioPage.locator('#preview').isVisible(),false);
+  assert.equal(await portfolioPage.locator('#approved').isChecked(),false);
+  for(const id of ['rules','changes','original','checked'])assert.equal(await portfolioPage.locator('#'+id).textContent(),'');
+  await portfolioPage.getByRole('tab',{name:'Portfolio',exact:true}).click();
+  await portfolioButton('Close portfolio').click();
+  await portfolioButton('Open portfolio folder').click();
+  await portfolioButton('Open '+second).waitFor();
+  assert.match(await portfolio.locator('article').filter({has:portfolioPage.getByRole('button',{name:'Open '+first,exact:true})}).textContent(),/Check salary totals/);
+  assert.match(await portfolio.locator('article').filter({has:portfolioPage.getByRole('button',{name:'Open '+second,exact:true})}).textContent(),/Check subaward roster/);
+  assert.equal(await portfolioPage.locator('#boundCase').textContent(),'');
+
+  async function addDocument(category,name){
+    await portfolio.getByText('Add a requirement',{exact:true}).click();
+    const form=portfolio.locator('form').filter({has:portfolioPage.getByRole('button',{name:'Add requirement',exact:true})});
+    await form.getByLabel('Document category').selectOption(category);
+    await form.getByLabel('Document label').fill(name);
+    await form.getByLabel('Applicability').selectOption('Required');
+    await form.getByRole('button',{name:'Add requirement',exact:true}).click();
+    const card=portfolio.locator('article').filter({has:portfolioPage.getByRole('heading',{name,exact:true})});
+    await card.getByText('Versions and requirement details',{exact:true}).click();
+    await card.getByLabel('Version label').fill('Original');
+    await card.getByRole('button',{name:'Record version',exact:true}).click();
+    await card.getByText(/Required · v1 · Original/).waitFor();
+  }
+  async function freezeRound(){
+    await portfolio.getByText('Record an inventory snapshot',{exact:true}).click();
+    await portfolio.getByLabel('Round label').fill('First review');
+    await portfolioButton('Record snapshot').click();
+    await portfolio.getByText('Round 1 · First review',{exact:true}).waitFor();
+  }
+  async function openRound(){
+    await portfolio.getByText('Round 1 · First review',{exact:true}).click();
+    await portfolioButton('Review this round').click();
+  }
+  await portfolioButton('Open '+first).click();
+  await addDocument('Budget','Fabrication budget');
+  await addDocument('Opportunity guidance','Invented instructions');
+  await freezeRound();
+  await openRound();
+  const exchange=portfolioPage.locator('#round-exchange');
+  const excerpts=[
+    ['Fabrication budget · v1','Budget!B7','Requested amount is 1200.'],
+    ['Invented instructions · v1','Section 2','The total cost ceiling is 1000.']
+  ];
+  for(const [doc,anchor,excerpt] of excerpts){
+    await exchange.getByLabel('Document version').selectOption({label:doc});
+    await exchange.getByLabel('Page, paragraph or sheet and cell').fill(anchor);
+    await exchange.getByLabel('Fictional excerpt',{exact:true}).fill(excerpt);
+    await exchange.getByRole('button',{name:'Add excerpt',exact:true}).click();
+  }
+  await exchange.getByRole('checkbox').check();
+  const [download]=await Promise.all([portfolioPage.waitForEvent('download'),exchange.getByRole('button',{name:'Register and download fictional packet'}).click()]);
+  const packetPath=path.join(output,download.suggestedFilename());
+  await download.saveAs(packetPath);
+  const packet=JSON.parse(await readFile(packetPath,'utf8'));
+  assert.deepEqual(packet.items.map(i=>i.text),excerpts.map(e=>e[2]));
+  const {reviewerRelease,proposalId,roundId,packetId,reportId,digest}=packet;
+  const report={format:'juliet.findings.v1', reviewerRelease,proposalId,roundId,packetId,reportId,digest,
+    coverage:{reviewed:['E1','E2'],unreviewed:[]},
+    findings:[{type:'objective_error',message:'Requested amount exceeds the fictional ceiling by 200.',
+      evidence:[{itemId:'E1',quote:excerpts[0][2]}],guidance:[{itemId:'E2',quote:excerpts[1][2]}]}]};
+  const returned={name:'findings.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))};
+  async function checkReport(){
+    await exchange.getByLabel('Returned findings JSON').setInputFiles(returned);
+    await exchange.getByRole('button',{name:'Check packet and report'}).click();
+  }
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(packetPath);
+  await checkReport();
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).waitFor();
+  await exchange.getByLabel('Page, paragraph or sheet and cell').fill('Section 3');
+  await exchange.getByLabel('Fictional excerpt',{exact:true}).fill('A fictional agency will announce the award in June.');
+  await exchange.getByRole('button',{name:'Add excerpt',exact:true}).click();
+  await exchange.getByRole('checkbox').check();
+  const [newPacket]=await Promise.all([portfolioPage.waitForEvent('download'),exchange.getByRole('button',{name:'Register and download fictional packet'}).click()]);
+  assert.notEqual(newPacket.suggestedFilename(),download.suggestedFilename());
+  assert.equal(await exchange.getByRole('button',{name:'Save verified report to this round'}).isVisible(),false);
+  assert.equal(await exchange.getByLabel('Original registered fictional packet').inputValue(),'');
+  assert.equal(await exchange.getByLabel('Returned findings JSON').inputValue(),'');
+  await portfolioPage.getByRole('tab',{name:'Guidelines',exact:true}).click();
+  assert.equal(await exchange.textContent(),'');
+  await portfolioPage.getByRole('tab',{name:'Portfolio',exact:true}).click();
+  await openRound();
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(packetPath);
+  await checkReport();
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).waitFor();
+  assert((await exchange.textContent()).includes(excerpts[1][2]));
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).click();
+  await portfolio.getByText('Report '+reportId,{exact:true}).waitFor({state:'attached'});
+  await portfolio.getByText('Round 1 · First review',{exact:true}).click();
+  await portfolio.getByText('Report '+reportId,{exact:true}).click();
+  await portfolio.getByText('Record a finding decision',{exact:true}).click();
+  const decision=portfolio.locator('form').filter({has:portfolioPage.getByRole('button',{name:'Save decision',exact:true})});
+  await decision.getByRole('combobox').selectOption('Accepted');
+  await portfolio.getByLabel('Decision note').fill('Compared requested amount with the supplied ceiling.');
+  await portfolioButton('Save decision').click();
+  await portfolio.getByText(/Accepted · Compared requested amount/).waitFor({state:'attached'});
+  await portfolio.getByText('Round 1 · First review',{exact:true}).click();
+  await portfolio.getByText(/Accepted · Compared requested amount/).waitFor();
+  await portfolioButton('Open '+second).click();
+  assert.equal(await exchange.textContent(),'');
+  assert.equal(await portfolio.getByText(report.findings[0].message,{exact:true}).count(),0);
+  await addDocument('Budget','Fabrication budget');
+  await freezeRound();
+  await openRound();
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(packetPath);
+  await checkReport();
+  await exchange.getByText(/belongs to another proposal or review round/).waitFor();
+  assert.equal(await exchange.getByRole('button',{name:'Save verified report to this round'}).isVisible(),false);
+  assert.deepEqual(portfolioRequests,[]);
+  await portfolioContext.close();
+  console.log('Two-proposal offline preparation, packet, findings, disposition and isolation passed');
   for(const ext of ['pdf','docx']){
     const context=await browser.newContext({viewport:ext==='docx'?{width:390,height:844}:{width:1280,height:900},hasTouch:ext==='docx'});
     const page=await context.newPage();
@@ -64,8 +265,11 @@ try{
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
     await context.setOffline(true);
     const requests=[];page.on('request',req=>{if(/^https?:/.test(req.url()))requests.push(req.url());});
-    await checkFeedback(); // Proposal selection.
-    await page.getByRole('tab',{name:'Proposal',exact:true}).focus();
+    assert.equal(await page.title(),'Juliet · Personal Proposal Reviewer');
+    assert(await page.getByRole('heading',{name:'Juliet',exact:true}).isVisible());
+    assert.equal(await page.locator('#portfolioTab').getAttribute('aria-selected'),'true');
+    await checkFeedback();
+    await page.getByRole('tab',{name:'Prepare files',exact:true}).click();
     await page.keyboard.press('ArrowRight');
     assert.equal(await page.locator('#guidelinesTab').getAttribute('aria-selected'),'true');
     assert(await page.locator('#guidelinesPanel').isVisible());
@@ -82,7 +286,7 @@ try{
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     await checkFeedback(); // Guidelines, including the phone viewport.
     await page.locator('#guidelinesTab').focus();
-    await page.keyboard.press('Home');
+    await page.keyboard.press('ArrowLeft');
     assert.equal(await page.locator('#caseTab').getAttribute('aria-selected'),'true');
     await page.locator('#sponsor').fill('NIH');await page.locator('#date').fill('2026-11-03');
     await page.locator('#budget').setInputFiles(path.join(fixture,'input.xlsx'));
@@ -96,7 +300,7 @@ try{
     assert.equal(await page.locator('#submissionCase').textContent(),'Proposal: NIH-2026-11-03');
     await page.locator('#submissionStatus').selectOption('submitted');
     await page.getByRole('tab',{name:'Guidelines',exact:true}).click();
-    await page.getByRole('tab',{name:'Proposal',exact:true}).click();
+    await page.getByRole('tab',{name:'Prepare files',exact:true}).click();
     assert.equal(await page.locator('#submissionStatus').inputValue(),'submitted');
     assert.deepEqual(await page.evaluate(()=>({local:{...localStorage},session:{...sessionStorage}})),{local:{},session:{}});
     let redacted=0;
@@ -173,7 +377,6 @@ try{
     assert(closeBox.y+closeBox.height<=feedbackBar.y,'Feedback bar must not cover the final case action.');
     assert.deepEqual(requests,[]);
     // Closing/reloading must not restore status or attach it to a different proposal.
-    await context.setOffline(false);
     await page.locator('#reset').click();
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled,null,{timeout:15000});
     assert.equal(await page.locator('#submissionStatus').inputValue(),'not-set');
