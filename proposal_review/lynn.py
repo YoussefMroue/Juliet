@@ -63,6 +63,8 @@ def protect_dependencies(book, plan):
         for match in matches:
             sheet = match['sheet']
             sheet = sheet[1:-1].replace("''", "'") if sheet and sheet.startswith("'") else sheet
+            if sheet and ':' in sheet:
+                raise Blocked('Blank cells cannot be checked against a cross-sheet range; prepare a safe source copy.')
             sheet = (sheet or current_sheet or '').lower()
             area = match['area'].replace('$', '').upper()
             start, _, end = area.partition(':')

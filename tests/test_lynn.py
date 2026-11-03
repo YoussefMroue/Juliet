@@ -96,6 +96,21 @@ class LynnBlankCells(unittest.TestCase):
                 with self.assertRaisesRegex(Blocked, 'depend|cross-sheet'):
                     self.inspect()
 
+    def test_quoted_three_dimensional_references_block_before_blanking(self):
+        original = self.path.read_bytes()
+        for expression in ["=SUM('Project:TU Year One'!C3)",
+                           "=SUM('Project:TU Year One'!$C$3:$F$7)",
+                           "=SUM('Project:TU Year One'!C:C)"]:
+            with self.subTest(expression=expression):
+                book = load_workbook(io.BytesIO(original))
+                book['Details']['D10'] = expression
+                book.save(self.path)
+                before = self.path.read_bytes()
+                with self.assertRaisesRegex(Blocked, 'cross-sheet range'):
+                    self.inspect()
+                self.assertEqual(self.path.read_bytes(), before)
+                self.assertEqual(load_workbook(self.path)['Project']['C3'].value, NAME)
+
     def test_unrelated_sheet_coordinates_do_not_block(self):
         book = load_workbook(self.path)
         book['Details']['C3'] = 12
