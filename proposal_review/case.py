@@ -6,6 +6,7 @@ from collections import Counter
 from pathlib import Path
 
 from .office import Blocked, LIMIT, OfficeFile
+from .pdf import PdfFile
 
 CANDIDATES = [
     ('Email', re.compile(r'[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}')),
@@ -55,19 +56,28 @@ class Case:
     def __init__(self, budget, justification):
         self.files = []
         self.originals = []
-        for path, kind in [(Path(budget),'xlsx'), (Path(justification),'docx')]:
+        self.filenames = []
+        justification = Path(justification)
+        kind = 'pdf' if justification.suffix.lower() == '.pdf' else 'docx'
+        for path, kind in [(Path(budget),'xlsx'), (justification,kind)]:
             if path.suffix.lower() != '.'+kind:
                 raise Blocked(f'Expected a .{kind} file.')
             with path.open('rb') as source:
                 data = source.read(LIMIT+1)
-            self.files.append(OfficeFile(data, kind))
+            self.files.append(PdfFile(data) if kind == 'pdf' else OfficeFile(data, kind))
             self.originals.append(data)
+            self.filenames.append(path.name)
 
     def inspect(self, rules):
         aliases, pattern = normalize(rules)
         results = []
         changes = []
         for original, source in zip(self.originals, self.files):
+            if source.kind == 'pdf':
+                result, edits = source.inspect(original, aliases, pattern)
+                results.append(result)
+                changes.extend(edits)
+                continue
             copy = OfficeFile(original, source.kind)
             for part, field in copy.fields:
                 before = field.value
@@ -88,11 +98,11 @@ class Case:
 
 def export_pair(folder, results):
     """An exclusively created directory protects existing exports and originals."""
-    if [office.kind for _, office in results] != ['xlsx','docx']:
+    if [office.kind for _, office in results] not in (['xlsx','docx'], ['xlsx','pdf']):
         raise Blocked('Inspect both files before export.')
     dest = Path(tempfile.mkdtemp(prefix='review-', dir=folder))
     try:
-        for name, (data, _) in zip(('Budget.xlsx','Justification.docx'), results):
+        for name, (data, _) in zip(('Budget.xlsx','Justification.'+results[1][1].kind), results):
             with (dest/name).open('xb') as f:
                 f.write(data)
     except BaseException:

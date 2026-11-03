@@ -2,14 +2,14 @@
 
 ## Pilot preparation
 
-Windows 11 on a company-managed machine is confirmed. The first walkthrough uses the fictional cases because a previously reviewed, de-identified proposal is currently unavailable. Collect answers from the project owner first. Take only unresolved workflow questions to Lynn and unresolved distribution or data-handling questions to the appropriate company contact.
+Lynn has approved Python on her company-managed Windows 11 machine and can install Python packages. She will clone the project onto her desktop and keep inputs and reviewed copies locally. Budgets arrive in Excel and justifications arrive in both Word and mostly selectable-text PDF. PDF output must retain the original page layout. Her rule is to remove full names and other obvious personal identifiers. The first walkthrough uses the fictional cases because a previously reviewed, de-identified proposal is currently unavailable. Collect answers from the project owner first. Take only unresolved workflow questions to Lynn and unresolved distribution or data-handling questions to the appropriate company contact.
 
 ## Open questions
 
 1. For eventual reviewer acceptance, can Lynn compare the tool’s findings with a previously reviewed case within her approved working environment?
-2. Which Office formats are used? Do budgets have protection, macros, links, or comments? Are justifications Word files, PDFs, or scans?
-3. What must be removed, and what must stay legible? Consider names, initials, email, IDs, signatures, roles, salaries and effort. Is a consistent personnel label acceptable across files?
-4. Who can confirm the permitted workspace, which materials may leave the computer, and where approved copies may be retained? Include unpublished proposal details and internal guidance.
+2. Do budgets have protection, macros, links or comments?
+3. Use a consistent personnel label across both files. Check ambiguous identifiers, such as initials that could identify more than one person, during review.
+4. Who can confirm the permitted workspace, which materials may leave the computer, and which work account may receive reviewed copies? Include unpublished proposal details and internal guidance.
 5. Where do you obtain controlling sponsor and federal guidance, amendments and effective dates? How do you check that a solicitation number identifies the right version?
 6. Which Tulane rules apply universally, and what changes by grant? Give one prohibited cost, one exception and one judgment call.
 7. Which cross-document checks and report citations do you need? Show one correction you would send back and one clarification you would ask first.
