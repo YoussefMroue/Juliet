@@ -1,7 +1,10 @@
 // Session-only case state. No browser storage or network access.
 const $=id=>document.getElementById(id);
-const tabs=[$('caseTab'),$('guidelinesTab')];
-function selectTab(selected){
+const tabs=[$('portfolioTab'),$('caseTab'),$('guidelinesTab')];
+export function selectTab(selected){
+  if(selected!==$('portfolioTab') && !$('portfolioPanel').hidden){
+    $('portfolioPanel').dispatchEvent(new Event('leaveportfolio'));
+  }
   for(const tab of tabs){
     const active=tab===selected;
     tab.setAttribute('aria-selected',String(active));
@@ -25,16 +28,21 @@ const labels={
   submitted:'Submitted',withdrawn:'Withdrawn'
 };
 let submissionStatus='not-set';
+let portfolioStatus=null;
 $('submissionStatus').value=submissionStatus;
 $('submissionStatus').addEventListener('change',()=>{
   submissionStatus=Object.hasOwn(labels,$('submissionStatus').value)?$('submissionStatus').value:'not-set';
 });
-export function startSubmission(id){
+export function startSubmission(id, boundStatus=null){
   submissionStatus='not-set';
+  portfolioStatus=boundStatus;
   $('submissionStatus').value=submissionStatus;
-  $('submissionCase').textContent='Proposal: '+id;
-  $('submission').hidden=false;
+  $('standaloneStatus').hidden=boundStatus!==null;
+  $('boundStatus').hidden=boundStatus===null;
+  $('boundStatus').textContent=boundStatus===null?'':'Portfolio status when preparation opened: '+boundStatus+'. Manage the current status in Portfolio.';
+  $('submissionCase').textContent=id?'Proposal: '+id:'';
+  $('submission').hidden=!id;
 }
 export function submissionRecord(){
-  return 'Submission status (user-set snapshot; not compliance or review approval): '+labels[submissionStatus];
+  return 'Submission status (user-set snapshot; not compliance or review approval): '+(portfolioStatus??labels[submissionStatus]);
 }

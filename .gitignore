@@ -11,3 +11,7 @@ Local cases/
 
 node_modules/
 .wrangler/
+
+Juliet Portfolio/
+Juliet-packet-*.json
+Juliet-findings-*.json

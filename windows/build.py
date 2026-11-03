@@ -14,9 +14,9 @@ def build():
         raise SystemExit('Build the Windows executable on Windows with the target Python architecture.')
     out = ROOT / 'dist'
     out.mkdir(exist_ok=True)
-    destination = out / 'Proposal Review'
+    destination = out / 'Juliet'
     if destination.exists():
-        raise SystemExit('Move the previous dist/Proposal Review folder before building again.')
+        raise SystemExit('Move the previous dist/Juliet folder before building again.')
     subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-v'], cwd=ROOT, check=True,
                    env={**os.environ, 'PROPOSAL_TEST_DESKTOP': '1'})
     with tempfile.TemporaryDirectory(dir=out) as tmp:
@@ -24,10 +24,10 @@ def build():
         subprocess.run([
             sys.executable, '-m', 'PyInstaller', '--onedir', '--windowed', '--noupx',
             '--specpath', str(stage), '--workpath', str(stage / 'work'),
-            '--distpath', str(stage / 'bundle'), str(ROOT / 'Proposal Review.pyw')
+            '--distpath', str(stage / 'bundle'), str(ROOT / 'Juliet.pyw')
         ], cwd=ROOT, check=True)
-        bundle = stage / 'bundle' / 'Proposal Review'
-        if not (bundle / 'Proposal Review.exe').is_file():
+        bundle = stage / 'bundle' / 'Juliet'
+        if not (bundle / 'Juliet.exe').is_file():
             raise SystemExit('Expected Windows executable missing from build.')
         shutil.copyfile(ROOT / 'windows' / 'Start here.txt', bundle / 'Start here.txt')
         kit = bundle / 'Review kit'
