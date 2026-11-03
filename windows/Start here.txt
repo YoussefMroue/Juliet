@@ -1,0 +1,16 @@
+Proposal Review | Windows 11 pilot
+
+Keep the application folder together. Open Proposal Review.exe through your
+company's approved software process. The folder includes its own runtime.
+
+First practice run
+1. Open Practice cases, then clean. In the app, choose input.xlsx as the budget
+   and input.docx as the justification.
+2. Inspect the rules. For this fictional pair, replace Mira Example with Person 01,
+   mira@example.invalid with Email 01, XQ-417 with ID 01, and MX with Initials 01.
+   Remove suggestions you verify are harmless. Check the hidden sheet and comments.
+3. Inspect both copies, approve the export and choose a permitted output folder.
+4. Open Budget.xlsx and Justification.docx from the new review folder. Confirm
+   the total is 900, the formula still works, and the labels agree across files.
+5. The Review kit folder contains the intake, review instructions, findings
+   template and expected results for all five fictional practice cases.

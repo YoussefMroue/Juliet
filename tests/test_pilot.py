@@ -186,7 +186,7 @@ class PilotTests(unittest.TestCase):
                 build(folder,scenario)
                 pair,_ = Case(folder/'input.xlsx',folder/'input.docx').inspect(RULES)
                 sheet = load_workbook(io.BytesIO(pair[0][0])).active
-                guidance = (folder/'exercise-guidance.txt').read_text()
+                guidance = (folder/'exercise-guidance.txt').read_text(encoding='utf-8')
                 amount = sum(sheet[cell].value for cell in ('B2','B3'))
                 self.assertEqual(sheet['B4'].value,'=SUM(B2:B3)')
                 self.assertIn(f'total {amount}',Document(io.BytesIO(pair[1][0])).paragraphs[1].text)

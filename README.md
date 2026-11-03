@@ -4,9 +4,23 @@ A local desktop pilot for inspecting a grant budget and its written justificatio
 
 **Choose two files → review identifiers → inspect changes → approve local copies → hand off manually.**
 
-## Run
+## Windows 11 pilot
 
-Open **Proposal Review.pyw** with a Tk-enabled Python installation, or launch from this folder. Run `python3 -m proposal_review` on macOS or Linux, or `py -3 -m proposal_review` on Windows. Use Python 3.9 or later with Tk support. Run `python3 -m tkinter` (Windows: `py -3 -m tkinter`) to check the desktop runtime. The app uses only the Python standard library. An installer target will be selected once Lynn confirms her operating system.
+The target is Lynn’s company-managed Windows 11 computer. The Windows build produces a folder containing **Proposal Review.exe**, its runtime, a plain-text review kit and five fictional practice cases. Lynn opens the approved copy of the app and follows **Start here.txt**. The build and software approval steps belong on the development or IT side.
+
+**Build and verify on Windows.** Use an approved Windows build computer with an interactive desktop and a Tk-enabled Python 3.12 matching the target architecture. From the repository root in PowerShell, use a project-local environment:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt PyInstaller==6.22.3
+.\.venv\Scripts\python.exe windows/build.py
+```
+
+The builder runs the tests, including the desktop workflow, before creating the self-contained folder in `dist/Proposal Review`. Keep the entire folder together. On a representative Windows 11 machine, run the packaged executable as a standard user and complete the included practice run in Excel and Word. Apply the company’s signing and distribution requirements once confirmed. [Windows build requirements](https://pyinstaller.org/en/stable/index.html)
+
+For development with an existing Python and Tk installation, run `py -3 -m proposal_review` on Windows or `python3 -m proposal_review` on macOS or Linux.
+
+## Review a pair of files
 
 1. Select an Excel budget (.xlsx) and Word justification (.docx). Original files are opened read-only.
 2. Inspect the **Original content and locations** tab, including hidden sheets, metadata and comments. Suggestions are local heuristics for names, email, US-style phone numbers and SSNs. Add missed identifiers manually, including initials, single names, IDs and aliases. Remove false suggestions. Reuse the same neutral label for variants of one person. Rules match case-insensitive literal substrings (alphabetic terms of three characters or fewer match whole tokens); inspect overlaps and short terms carefully.
@@ -25,7 +39,7 @@ Unsupported parts or features block the pair with a location. Examples include m
 - [Grant intake](review-kit/01-intake.md)
 - [Reusable review instructions](review-kit/02-review-instructions.md)
 - [Findings template](review-kit/03-findings.md)
-- [Questions for Lynn, exercise answer key and pilot acceptance](review-kit/04-pilot.md)
+- [Pilot questions, exercise answer key and acceptance](review-kit/04-pilot.md)
 
 ## Test and rehearse
 
