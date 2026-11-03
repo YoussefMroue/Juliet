@@ -33,7 +33,11 @@ try{
     await page.locator('#justification').setInputFiles(path.join(fixture,'input.docx'));
     await page.getByText('Inspect files',{exact:true}).click();
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
-    await page.locator('#useLynnWorkflow').check();
+    assert(await page.getByText('Rehearsal only.', {exact:true}).isVisible());
+    const checklist=page.locator('#useLynnWorkflow');
+    assert.match(await checklist.getAttribute('aria-describedby'), /lynnPilotNotice/);
+    assert.match(await page.locator('#lynnPilotNotice').innerText(), /fictional files.*institution authorizes.*matching justification/);
+    await checklist.check();
     assert.match(await page.locator('#lynnSheets').textContent(),/Project and TU Year One found/);
     assert.match(await page.locator('#lynnOriginal').textContent(),/Project!F7.*immune response pilot/);
     await page.locator('#submissionStatus').selectOption('submitted');

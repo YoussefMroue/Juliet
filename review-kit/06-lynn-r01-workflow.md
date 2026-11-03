@@ -33,10 +33,16 @@ The checklist is a workflow aid, not a security boundary: users can explicitly s
 - Whether other workbook templates, year sheets, multiple PIs or multiple pairs need a variant of this checklist.
 - Whether real templates have mixed-content name cells or formula dependencies requiring a separately reviewed adaptation.
 
-No merge or deployment is part of this change.
+## Operational acceptance
+
+Use fictional files for rehearsal. The checklist can proceed through source review and merge on the synthetic evidence below. Release for real proposals is on hold until the institution authorizes the proposed data handling and Lynn accepts the results from a representative workbook and matching justification. These documents are currently unavailable.
+
+When an authorized pair becomes available, compare calculations and salary totals in Excel, check blanked cells and neutral labels against the preview, and reconcile the justification. Recalculate on a disposable private QA copy. Excel can add the signed-in editor’s identity when it saves. Use the untouched approved export for handoff, or re-inspect a resaved file before handoff.
 
 Dependency checks reject quoted as well as unquoted 3-D sheet ranges (for example, `SUM('Project:TU Year One'!C3)`) before blanking. These references require a separately reviewed source copy.
 
 ## Validation
 
 On November 3, 2026, the site build, Cloudflare packaging dry run, JavaScript syntax checks and whitespace checks passed. The fictional NIH R01 workflow passed in Chromium at 1280px and 390px widths, including blocked previews for incomplete checks, unselected identifiers and short substring inputs; actual exported blank PI/title/personnel cells; independently reopened Office files; preserved salary cells/formulas and original bytes; checklist reset; private-only completion snapshots; and zero HTTP requests while handling the case. The existing XLSX/PDF and XLSX/DOCX offline workflows also passed, including missing-sheet handling, the two-file handoff and opt-in private backup. All five PDF regressions and 37 Python tests passed; two native desktop UI tests were skipped because the environment has no display. Python coverage includes shared/rich text, hidden target sheets, mixed-content rejection, formula dependencies and numeric protections. Real Cayuse/Waveworks access, real proposal templates and the remaining recording are not verified by these tests.
+
+In a separate Excel check on the fictional pair at `988257c`, full recalculation returned 1,050 in TU Year One!B4 both before and after blanking. The formula and its inputs (700, 200 and 150) were preserved, and the four selected text cells were empty. The preview fix at `abac807` produced identical contents for all 11 workbook ZIP members when run against the same synthetic input as `988257c`. This check covers the fictional workbook only.
