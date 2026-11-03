@@ -15,7 +15,25 @@
 <p id="submissionMeaning">Set this yourself. It does not submit files, confirm sponsor receipt, or indicate compliance or review approval. Inspecting and exporting files never changes it.</p>
 <p id="submissionStorage">Kept only in this open case. Closing or reloading clears it; it does not sync to another tab, browser or device. An explicit private backup includes a status snapshot in its review record. The approved handoff ZIP does not.</p>
 </section>
-<section hidden id="review"><h2>2 · Review identifiers</h2><p>Choose which terms to redact. Keep roles and budget amounts that Lynn needs for review.</p><details><summary>Read original text and locations</summary><pre id="original"></pre></details><div id="rules"></div><button id="add">Add identifier</button> <button id="inspect">Preview redacted copies</button></section>
+<section hidden id="review"><h2>2 · Review identifiers</h2><p>Choose which terms to redact. Keep roles and budget amounts that Lynn needs for review.</p>
+<label><input type="checkbox" id="useLynnWorkflow"> Use Lynn’s NIH R01 checklist for this case</label>
+<div hidden id="lynnWorkflow">
+<h3>Before redacting the pair</h3>
+<p>Complete these checks yourself in the source systems. The app does not connect to Cayuse or Waveworks and cannot verify salaries or the proposal record.</p>
+<label><input type="checkbox" id="cayuseChecked"> I downloaded this budget and justification from Cayuse and checked the proposal record.</label>
+<label><input type="checkbox" id="guidanceGathered"> I gathered and reviewed the applicable funding-opportunity guidelines.</label>
+<label><input type="checkbox" id="salariesVerified"> I verified all salaries in Waveworks before removing personnel names.</label>
+<p>If a salary needs correcting, correct a separate source copy and start a new case. Original files stay unchanged.</p>
+<details><summary>Read Project and TU Year One content</summary><pre id="lynnOriginal"></pre></details>
+<p id="lynnSheets" role="status"></p>
+<label>PI name as written on Project<input id="projectPi" type="text" autocomplete="off" spellcheck="false"></label>
+<label>Project title as written on Project<input id="projectTitle" type="text" autocomplete="off" spellcheck="false"></label>
+<button type="button" id="addProjectIdentifiers">Add PI and project title to redactions</button>
+<p>These identifiers will use neutral replacement labels in both files wherever they match. Reuse the PI’s label for name variants. Add any other personnel names from TU Year One, including names the suggestions missed, using Add identifier below. Review all sheets and the justification too.</p>
+<label><input type="checkbox" id="personnelCovered"> I checked TU Year One and selected every personnel name there for redaction, including variants.</label>
+<p>These are your confirmations, not automated validation or compliance approval. The checklist and entered identifiers stay in this open case only. A private backup records the completed checklist without separately listing these identifiers.</p>
+</div>
+<details><summary>Read original text and locations</summary><pre id="original"></pre></details><div id="rules"></div><button id="add">Add identifier</button> <button id="inspect">Preview redacted copies</button></section>
 <section hidden id="preview"><h2>3 · Inspect and save</h2><pre id="changes"></pre><details><summary>Inspect redacted Office content</summary><pre id="checked"></pre></details><div id="pages"></div><label><input type="checkbox" id="approved"> I inspected both copies and approve saving them.</label>
 <button id="save">Download approved files</button><p>The handoff ZIP contains the approved budget and justification.</p>
 <details id="privateBackup"><summary>Private backup with original files</summary>

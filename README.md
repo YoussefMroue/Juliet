@@ -18,6 +18,8 @@ Build with `npm ci` and `npm run build`. Run `npm run check:cloudflare` for a de
 
 ### Submission status and guidelines
 
+For Lynn's NIH R01 process, select **Use Lynn’s NIH R01 checklist for this case** after inspecting the original pair. Confirm Cayuse, opportunity-guidance and salary checks; enter the Project PI name and project title and select them for redaction; then check all TU Year One personnel names. Preview waits for your confirmations. No connection to Cayuse or Waveworks is made. See the [meeting-based workflow and its limits](review-kit/06-lynn-r01-workflow.md).
+
 The **Feedback** bubble is available throughout the browser app, including Guidelines and file review. It opens your configured email app addressed to `ymroue9@gmail.com`, with no subject, message body, attachments or case details added. You write, review and send the message yourself. If no email app is configured, compose an email to that address manually. The app does not send feedback or collect telemetry.
 
 After inspecting a pair, set its **Submission status** yourself. It is separate from redaction approval, compliance and sponsor receipt. It stays only in the open case and clears on close/reload; it does not sync to another tab or device. An explicitly requested private backup includes a status snapshot in `Review record.txt`. The two-file handoff never includes status. The existing private-round counter still stores the proposal ID and last round in this browser profile.
@@ -93,7 +95,10 @@ Unsupported parts or features block the pair with a location. Examples include m
 - [Findings template](review-kit/03-findings.md)
 - [Pilot questions, exercise answer key and acceptance](review-kit/04-pilot.md)
 - [Proposal organization plan and submission status](review-kit/05-organization-plan.md)
+- [Lynn's NIH R01 workflow and source limitations](review-kit/06-lynn-r01-workflow.md)
 
 ## Test and rehearse
+
+For the NIH R01 checklist regression, generate fictional inputs in a new temporary directory with `python -m tests.lynn_fixture /tmp/lynn-fixture`. After building, run `node web/lynn.test.mjs /tmp/lynn-fixture /tmp/test-output` (create the output directory first). Set `PYTHON` to your test-environment Python and, if needed, `PLAYWRIGHT_EXECUTABLE_PATH` to an installed Chromium. This tests manual gates, PI/title and personnel redaction, salary/formula preservation, reset, private snapshots and offline handling at desktop and phone widths.
 
 Word and Excel use Python and Tk. PDF support uses the dependency listed in `requirements-pdf.txt`. For the test suite and exercise generator, install `requirements-test.txt` in a separate Python environment. Run `python -m unittest discover -v` from this folder. For the browser PDF regressions, run `npm run build` followed by `node --test web/pdf.test.mjs`. Run `python -m tests.exercises /path/to/new/exercises` to generate the five fictional practice cases in a new directory outside the repository. Compare a review of each case against the pilot answer key.
