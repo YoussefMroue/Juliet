@@ -132,18 +132,17 @@ def inspect_budget(data, rules, blank_terms, project_terms=()):
     # Keep all existing numeric, protected-field and residual checks intact.
     case = Case.__new__(Case)
     case.originals, case.files = [data], [source]
-    results, changes = case.inspect(rules)
+    cleared = {(part, address) for _, part, address, _ in plan}
+    results, changes = case.inspect(rules, omit_replacement_cells=cleared)
     _, edited = results[0]
-    cleared = {f'{sheet}!{address}' for sheet, _, address, _ in plan}
-    changes = [change for change in changes if change[1] not in cleared]
-    for sheet, part, address, original in plan:
+    for _, part, address, original in plan:
         cell, = [c for c in elements(edited.roots[part], S, 'c') if c.getAttribute('r') == address]
         for node in list(cell.childNodes):
             cell.removeChild(node)
         if cell.hasAttribute('t'):
             cell.removeAttribute('t')
         edited.dirty.add(part)
-        changes.append(('Budget', f'{sheet}!{address}', original, ''))
+        changes.append(('Budget', edited.cell_location(part, address), original, ''))
     strings = edited.roots.get('xl/sharedStrings.xml')
     if strings and strings.documentElement.hasAttribute('count'):
         count = sum(c.getAttribute('t') == 's' for _, _, root in worksheets(edited) for c in elements(root, S, 'c'))

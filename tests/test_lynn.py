@@ -143,8 +143,10 @@ class LynnBlankCells(unittest.TestCase):
         book['TU Year One'].title = 'Temporary year'
         book['Temporary year'].title = 'tu year one'
         book.save(self.path)
-        result, _, _ = self.inspect()
+        result, changes, _ = self.inspect()
         after = load_workbook(io.BytesIO(result))
+        self.assertEqual([row[1:] for row in changes if row[2] == TITLE],
+                         [('project (hidden)!F7', TITLE, '')])
         self.assertIsNone(after['project']['C3'].value)
         self.assertIsNone(after['tu year one']['A2'].value)
         self.assertEqual(after['project'].sheet_state, 'hidden')
@@ -158,7 +160,10 @@ class LynnBlankCells(unittest.TestCase):
 
     def test_shared_and_rich_text_cells_blank_without_leaving_private_strings(self):
         book = load_workbook(self.path)
-        book['Details']['D9'] = NAME  # This sheet must keep its neutral label.
+        book['Details'].title = 'Details, internal'
+        book['Details, internal']['D9'] = NAME  # This sheet must keep its neutral label.
+        book['Details, internal']['E10'] = NAME
+        book['Project'].sheet_state = 'veryHidden'
         book.save(self.path)
         with ZipFile(self.path) as z:
             parts = {name: z.read(name) for name in z.namelist()}
@@ -170,28 +175,42 @@ class LynnBlankCells(unittest.TestCase):
         ET.SubElement(rels, f'{{{PR}}}Relationship', {'Id': 'rIdStrings', 'Target': 'sharedStrings.xml',
             'Type': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings'})
         parts['xl/_rels/workbook.xml.rels'] = ET.tostring(rels)
-        for part, address in [('xl/worksheets/sheet1.xml', 'C3'), ('xl/worksheets/sheet2.xml', 'A2'), ('xl/worksheets/sheet3.xml', 'D9')]:
+        for part, address, index in [('xl/worksheets/sheet1.xml', 'C3', 0),
+                                     ('xl/worksheets/sheet1.xml', 'F7', 1),
+                                     ('xl/worksheets/sheet2.xml', 'A2', 0),
+                                     ('xl/worksheets/sheet3.xml', 'D9', 0),
+                                     ('xl/worksheets/sheet3.xml', 'E10', 0)]:
             root = ET.fromstring(parts[part])
             cell = root.find(f'.//{{{S}}}c[@r="{address}"]')
             for child in list(cell):
                 cell.remove(child)
             cell.set('t', 's')
-            ET.SubElement(cell, f'{{{S}}}v').text = '0'
+            ET.SubElement(cell, f'{{{S}}}v').text = str(index)
             parts[part] = ET.tostring(root)
         parts['xl/sharedStrings.xml'] = (
-            f'<sst xmlns="{S}" count="3" uniqueCount="2"><si><r><t>Mira </t></r><r><t>Example</t></r></si>'
-            '<si><t>Noor Fictional</t></si></sst>').encode()
+            f'<sst xmlns="{S}" count="5" uniqueCount="3"><si><r><t>Mira </t></r><r><t>Example</t></r></si>'
+            f'<si><t>{TITLE}</t></si><si><t>Noor Fictional</t></si></sst>').encode()
         data = io.BytesIO()
         with ZipFile(data, 'w') as z:
             for name, raw in parts.items():
                 z.writestr(name, raw)
-        result, _, _ = self.inspect(data.getvalue())
+        result, changes, _ = self.inspect(data.getvalue())
         after = load_workbook(io.BytesIO(result))
         self.assertIsNone(after['Project']['C3'].value)
         self.assertIsNone(after['TU Year One']['A2'].value)
-        self.assertEqual(after['Details']['D9'].value, 'Person PI')
+        self.assertEqual(after['Details, internal']['D9'].value, 'Person PI')
+        self.assertCountEqual(
+            [row[1:] for row in changes if row[2] == NAME and '!' in row[1]],
+            [('Project (veryHidden)!C3', NAME, ''), ('TU Year One!A2', NAME, ''),
+             ('Details, internal (hidden)!D9', NAME, 'Person PI'),
+             ('Details, internal (hidden)!E10', NAME, 'Person PI')])
+        self.assertEqual(after['Details, internal']['E10'].value, 'Person PI')
+        self.assertIsNone(after['Project']['F7'].value)
+        self.assertEqual([row[1:] for row in changes if row[2] == TITLE],
+                         [('Project (veryHidden)!F7', TITLE, '')])
+        self.assertIn(('Budget', 'Unused shared string 2', 'Noor Fictional', 'Person 02'), changes)
         with ZipFile(io.BytesIO(result)) as z:
             shared = z.read('xl/sharedStrings.xml').decode()
             self.assertNotIn('Mira', shared)
             self.assertNotIn('Noor Fictional', shared)
-            self.assertEqual(ET.fromstring(shared).get('count'), '1')
+            self.assertEqual(ET.fromstring(shared).get('count'), '2')

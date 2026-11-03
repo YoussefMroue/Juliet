@@ -68,7 +68,7 @@ class Case:
             self.originals.append(data)
             self.filenames.append(path.name)
 
-    def inspect(self, rules):
+    def inspect(self, rules, *, omit_replacement_cells=frozenset()):
         rules = list(rules)
         aliases, pattern = normalize(rules)
         results = []
@@ -91,7 +91,12 @@ class Case:
                     copy.stop(field.location+' — match in a formula, value or protected field. Prepare a safe source copy.')
                 field.replace(matches, aliases)
                 copy.dirty.add(part)
-                changes.append((copy.label, field.location, before, field.value))
+                locations = [field.location]
+                if omit_replacement_cells and not omit_replacement_cells.isdisjoint(field.cell_refs):
+                    locations = [copy.cell_location(*ref) for ref in field.cell_refs
+                                 if ref not in omit_replacement_cells]
+                after = field.value
+                changes.extend((copy.label, location, before, after) for location in locations)
             result = copy.write()
             checked = OfficeFile(result, copy.kind)
             checked.verify(pattern)
