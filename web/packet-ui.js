@@ -1,4 +1,5 @@
 import {sealPacket, verifyPacket, verifyReport} from './packet.js';
+import {requiredFollowups, REVIEW_OPTIONS} from './review-context.js';
 
 function node(tag, text) {
   const el = document.createElement(tag);
@@ -18,7 +19,7 @@ function picker(title) {
 }
 async function readFile(input, originalPacket = false) {
   const file = input.files?.[0];
-  if (!file || file.size > 512 * 1024) throw Error('Choose a Juliet JSON file smaller than 512 KiB.');
+  if (!file || file.size > 8 * 1024 * 1024) throw Error('Choose a Juliet JSON file no larger than 8 MiB.');
   const text = await file.text();
   let data;
   try { data = JSON.parse(text); } catch { throw Error('The selected file is not readable JSON.'); }
@@ -54,7 +55,19 @@ export function showRoundExchange(host, context) {
     return el;
   }
   section.append(node('h3', 'Fictional packet rehearsal'), node('p', context.proposalLabel + ' · Round ' + context.roundNumber),
-    node('p','Only use invented material here. Select excerpts from the frozen inventory. Each location and excerpt below will be included in the download. The rest of the source documents stay on your device.'));
+    node('p','Only use invented material here. The download includes the round scope, complete inventory labels, prior findings, follow-ups and selected excerpts. Check all of them before sharing. Source files remain on your device.'));
+  if(context.reviewContext) {
+    const c=context.reviewContext;
+    section.append(node('p',REVIEW_OPTIONS.lane.find(([v])=>v===c.lane)[1]+' · '+REVIEW_OPTIONS.purpose.find(([v])=>v===c.purpose)[1]),
+      node('p','Opportunity and edition: '+(c.opportunity || 'Unknown')),node('p','Scope: '+c.scope),
+      node('p','Requested checks: '+c.requestedChecks.join(', ')),node('p','Guidance: '+c.guidanceStatus),
+      node('p','Calculation evidence (user-recorded): '+c.calculationEvidence+' · '+(c.calculationNote || 'No calculation evidence recorded.')),
+      node('p','Narrative permission: '+c.narrativePermission+' · Next action owner: '+(c.owner || 'Unassigned')+' · '+c.nextAction));
+    const inventory=node('ul');
+    for(const doc of context.documents) inventory.append(node('li',`${doc.name} · ${doc.category} · ${doc.requirement} · ${doc.version ? doc.version.label : 'No version'} · ${doc.source || 'No guidance reference'}`));
+    section.append(node('h4','Frozen inventory included in the packet'),inventory);
+    for(const f of context.priorFindings ?? []) section.append(node('p',`Prior ${f.findingId} · ${f.disposition} · ${f.message} · ${f.owner || 'Unassigned'} · ${f.nextAction}`));
+  } else section.append(node('p','This legacy round has no frozen review scope. Import its existing packet below, or record a new round to prepare a scoped packet.'));
   const docs = node('select');
   for (const doc of context.documents.filter(d => d.version)) {
     const option = node('option', doc.name + ' · v' + doc.version.number);
@@ -64,6 +77,7 @@ export function showRoundExchange(host, context) {
   const anchor = node('input'); anchor.maxLength = 180;
   const excerpt = node('textarea'); excerpt.maxLength = 6000;
   const rows = node('ol');
+  const followups = node('div');
   const entries = [];
   let approvedPacket = null;
   const consent = node('input'); consent.type = 'checkbox';
@@ -90,6 +104,12 @@ export function showRoundExchange(host, context) {
         button('Remove excerpt', () => {entries.splice(i,1); renderEntries();}));
       rows.append(li);
     });
+    followups.replaceChildren();
+    if(context.reviewContext) {
+      const items=entries.map(e=>({...e,category:context.documents.find(d=>d.id===e.documentId).category}));
+      followups.append(node('h4','Follow-ups required in the returned report'));
+      for(const gap of requiredFollowups(context.reviewContext,context.documents,items,context.priorFindings ?? [])) followups.append(node('p',`${gap.id} · ${gap.message} Next action: ${gap.nextAction}`));
+    }
     consent.checked = false;
   }
   const add = button('Add excerpt', () => {
@@ -97,11 +117,12 @@ export function showRoundExchange(host, context) {
     entries.push({documentId:docs.value, anchor:anchor.value, text:excerpt.value});
     anchor.value = ''; excerpt.value = ''; renderEntries(); anchor.focus();
   });
-  if (docs.options.length) {
+  if (docs.options.length && context.reviewContext) {
     section.append(label('Document version',docs), label('Page, paragraph or sheet and cell',anchor),
-      label('Fictional excerpt',excerpt),add,rows,label('I reviewed every listed excerpt and confirm all material is fictional.',consent),
+      label('Fictional excerpt',excerpt),add,rows,followups,label('I reviewed the scope, inventory, prior findings and excerpts and confirm all material is fictional.',consent),
       node('p','Check each excerpt against its named document version and location before registering the packet.'),save);
-  } else section.append(node('p','Record a document version and freeze a new round to prepare an excerpt packet.'));
+  } else if(context.reviewContext) section.append(node('p','Record a document version and freeze a new round to prepare an excerpt packet.'));
+  renderEntries();
   const p = picker('Original registered fictional packet');
   const r = picker('Returned findings JSON');
   const preview = node('div');
@@ -125,6 +146,8 @@ export function showRoundExchange(host, context) {
       node('p',report.coverage.reviewed.length + ' excerpts reviewed · ' + report.coverage.unreviewed.length + ' unreviewed.'));
     for (const f of report.findings) {
       preview.append(node('p',f.type + ' · ' + f.message));
+      if(f.id) preview.append(node('p',`${f.id} · Owner: ${f.owner || 'Unassigned'} · Next action: ${f.nextAction}`));
+      if(f.calculation) preview.append(node('p','Calculation to verify: '+f.calculation));
       for (const [label, refs] of [['Proposal evidence', f.evidence], ['Guidance', f.guidance]]) {
         for (const ref of refs) {
           const item = packet.items.find(i => i.itemId === ref.itemId);
@@ -133,6 +156,7 @@ export function showRoundExchange(host, context) {
         }
       }
     }
+    for(const gap of report.requiredFollowups ?? []) preview.append(node('p',`Required follow-up ${gap.id}: ${gap.message} Next action: ${gap.nextAction}`));
     pending = report; accept.hidden = false;
     status.textContent = 'Packet identity and quotations match. Check the reasoning before saving.';
   });

@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "juliet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Review a single fictional grant proposal packet and return cited findings for Lynn.",
   "author": { "name": "Youssef Mroue" },
   "extensions": {

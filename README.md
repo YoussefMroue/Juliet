@@ -8,10 +8,13 @@ Manage a portfolio of proposals locally. Each proposal has a document inventory,
 
 1. Open **Portfolio** in a supported desktop browser and choose a restricted, non-synced working folder. Juliet writes its journal in a dedicated `Juliet Portfolio` subfolder. Reopen the same folder to resume. Use one device and browser profile for this pilot. The journal is plaintext on disk and relies on the operating system for access control.
 2. Create a proposal, set its deadlines and time zones, and add the required documents. Record a new version when a document changes. A round freezes the inventory and its version labels. Open a separate proposal for a different submission, even when sponsor, date and filenames match.
-3. For a **fictional** practice review, choose **Review this round**. Enter only the invented passages Lynn has selected from that round and their locations. Include applicable fictional opportunity guidance. Approve the displayed excerpts and download the numbered-item JSON packet. This packet contains the excerpt text. Other source contents and the identity map stay outside it.
-4. Open a fresh chat with the **Juliet** reviewer plugin and manually attach the fictional packet. Save its returned findings JSON. In the same round choose the registered packet and report, check the citations and reasoning, then save the report. Lynn records her own disposition. An import or review decision never submits documents or changes proposal status.
+3. When recording a round, choose the review lane, purpose, requested checks and scope. Record the opportunity/edition or leave it explicitly unknown, guidance status, responsible role and next action. Describe any calculation evidence and narrative permission. The round freezes this context, the document inventory and unresolved prior findings. Budget reviews return necessary corrections; full-package reviews return an opportunity-specific checklist.
+4. For a **fictional** practice review, choose **Review this round**. Add only invented passages and their exact locations, including applicable fictional sponsor or institutional guidance. Inspect the required follow-ups. Approve the full packet: scope, inventory metadata, prior findings, follow-ups and excerpt text are all included in the download. Other source contents and the identity map stay outside it.
+5. Open a fresh chat with the matching **Juliet** reviewer release and manually attach the fictional packet. Save its returned findings JSON. In the same round choose the registered packet and report, check the citations and reasoning, then save the report. Missing guidance must remain a finding and next action even when the math is clean. Prior issues retain stable IDs across rounds. Lynn records her own disposition; an imported report never closes issues, submits documents or changes proposal status.
 
-The plugin source is in [reviewer/juliet](reviewer/juliet). Its release and report format must match the browser validator. This first release accepts fictional excerpts only. Calculations in a workbook still require independent verification in Excel. Institutional approval and named access must be established before any real proposal handoff.
+The plugin source is in [reviewer/juliet](reviewer/juliet). The draft source targets release **0.2.0** and v2 packets; this does not establish that the account plugin has been published or installed. Registered v1 packets and reports remain importable under their original rules. Record a new round with scope to create a v2 packet. The external handoff remains fictional-only. A calculation-method selection records what was reported; it does not prove an Excel run. Institutional authorization and actual sharing access must be established before any real proposal handoff.
+
+The [requirements and rollout sequence](review-kit/07-review-requirements.md) distinguishes confirmed workflow, proposed record meanings and unresolved decisions. A reported correction is separate from verification against a named current-round document/version and location. Legacy **Resolved** is not automatically **Verified**. Reviewer instructions contain reusable methods, not historical sponsor caps, institutional rates or individual proposal files.
 
 ## Browser app
 
@@ -105,6 +108,7 @@ Unsupported parts or features block the pair with a location. Examples include m
 - [Pilot questions, exercise answer key and acceptance](review-kit/04-pilot.md)
 - [Original organization plan and standalone submission status](review-kit/05-organization-plan.md)
 - [Lynn's NIH R01 workflow and source limitations](review-kit/06-lynn-r01-workflow.md)
+- [Complete-package review requirements and rollout](review-kit/07-review-requirements.md)
 
 ## Test and rehearse
 

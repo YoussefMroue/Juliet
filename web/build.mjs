@@ -2,7 +2,7 @@ import { mkdir, copyFile, readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path';
 const site = 'dist/site';
 await mkdir(site, {recursive:true});
-const siteFiles=['index.html','app.js','case-ui.js','portfolio.js','packet.js','packet-ui.js','pdf.js','style.css','_headers'];
+const siteFiles=['index.html','app.js','case-ui.js','portfolio.js','review-context.js','packet.js','packet-ui.js','pdf.js','style.css','_headers'];
 const manifest=new Set([...siteFiles,'runtime.json']);
 for(const file of ['pyodide.mjs','pyodide.asm.mjs','pyodide.asm.wasm','pyodide-lock.json','python_stdlib.zip'])manifest.add('pyodide/'+file);
 for(const file of ['mupdf.js','mupdf-wasm.js','mupdf-wasm.wasm'])manifest.add('mupdf/'+file);

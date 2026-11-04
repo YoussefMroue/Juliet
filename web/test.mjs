@@ -147,15 +147,30 @@ try{
     await card.getByRole('button',{name:'Record version',exact:true}).click();
     await card.getByText(/Required · v1 · Original/).waitFor();
   }
-  async function freezeRound(){
+  async function freezeRound({number=1,label='First review',lane='focused',purpose='initial',opportunity='Fictional fabrication opportunity, edition 1',scope='Check the requested fabrication amount against the supplied ceiling.',checks=['compliance'],guidance='provided',owner='Review administrator',nextAction='Confirm the requested amount.',calculationEvidence='not_checked',calculationNote=''}={}){
     await portfolio.getByText('Record an inventory snapshot',{exact:true}).click();
-    await portfolio.getByLabel('Round label').fill('First review');
+    const form=portfolio.locator('form').filter({has:portfolioPage.getByRole('button',{name:'Record snapshot',exact:true})});
+    await form.getByLabel('Round label').fill(label);
+    await form.locator('select[name="lane"]').selectOption(lane);
+    await form.locator('select[name="purpose"]').selectOption(purpose);
+    await form.getByLabel('Opportunity and edition',{exact:true}).fill(opportunity);
+    await form.getByLabel('Review scope',{exact:true}).fill(scope);
+    for(const [value,name] of [['completeness','Completeness'],['calculations','Calculations'],['compliance','Compliance with supplied guidance'],['consistency','Cross-document consistency'],['narrative','Narrative quality']])await form.getByRole('checkbox',{name,exact:true}).setChecked(checks.includes(value));
+    await form.locator('select[name="guidanceStatus"]').selectOption(guidance);
+    await form.getByText('Owners and evidence limits',{exact:true}).click();
+    await form.getByLabel('Next-action owner',{exact:true}).fill(owner);
+    await form.getByLabel('Review next action',{exact:true}).fill(nextAction);
+    await form.locator('select[name="calculationEvidence"]').selectOption(calculationEvidence);
+    await form.getByLabel('Calculation evidence note',{exact:true}).fill(calculationNote);
+    await form.getByRole('checkbox',{name:'I confirmed the listed latest versions are active for this round.',exact:true}).check();
     await portfolioButton('Record snapshot').click();
-    await portfolio.getByText('Round 1 · First review',{exact:true}).waitFor();
+    await portfolio.getByText(`Round ${number} · ${label}`,{exact:true}).waitFor();
   }
-  async function openRound(){
-    await portfolio.getByText('Round 1 · First review',{exact:true}).click();
-    await portfolioButton('Review this round').click();
+  async function openRound(number=1,label='First review'){
+    const summary=portfolio.getByText(`Round ${number} · ${label}`,{exact:true});
+    const round=summary.locator('..');
+    if(!await round.evaluate(node=>node.open))await summary.click();
+    await round.getByRole('button',{name:'Review this round',exact:true}).click();
   }
   await portfolioButton('Open '+first).click();
   await addDocument('Budget','Fabrication budget');
@@ -178,15 +193,20 @@ try{
   const packetPath=path.join(output,download.suggestedFilename());
   await download.saveAs(packetPath);
   const packet=JSON.parse(await readFile(packetPath,'utf8'));
+  assert.equal(packet.format,'juliet.packet.v2');
+  assert.equal(packet.reviewerRelease,'0.2.0');
+  assert.equal(packet.reviewContext.lane,'focused');
+  assert.equal(packet.reviewContext.guidanceStatus,'provided');
+  assert.deepEqual(packet.requiredFollowups,[]);
   assert.deepEqual(packet.items.map(i=>i.text),excerpts.map(e=>e[2]));
   const {reviewerRelease,proposalId,roundId,packetId,reportId,digest}=packet;
-  const report={format:'juliet.findings.v1', reviewerRelease,proposalId,roundId,packetId,reportId,digest,
+  const report={format:'juliet.findings.v2', reviewerRelease,proposalId,roundId,packetId,reportId,digest,
     coverage:{reviewed:['E1','E2'],unreviewed:[]},
     findings:[{type:'objective_error',message:'Requested amount exceeds the fictional ceiling by 200.',
-      evidence:[{itemId:'E1',quote:excerpts[0][2]}],guidance:[{itemId:'E2',quote:excerpts[1][2]}]}]};
-  const returned={name:'findings.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(report))};
-  async function checkReport(){
-    await exchange.getByLabel('Returned findings JSON').setInputFiles(returned);
+      evidence:[{itemId:'E1',quote:excerpts[0][2]}],guidance:[{itemId:'E2',quote:excerpts[1][2]}],
+      gapIds:[],priorFindingId:null,owner:'Review administrator',nextAction:'Correct the request or supply the applicable ceiling.',calculation:''}]};
+  async function checkReport(value=report){
+    await exchange.getByLabel('Returned findings JSON').setInputFiles({name:'findings.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(value))});
     await exchange.getByRole('button',{name:'Check packet and report'}).click();
   }
   await exchange.getByLabel('Original registered fictional packet').setInputFiles(packetPath);
@@ -215,7 +235,7 @@ try{
   await portfolio.getByText('Report '+reportId,{exact:true}).click();
   await portfolio.getByText('Record a finding decision',{exact:true}).click();
   const decision=portfolio.locator('form').filter({has:portfolioPage.getByRole('button',{name:'Save decision',exact:true})});
-  await decision.getByRole('combobox').selectOption('Accepted');
+  await decision.locator('select[name="disposition"]').selectOption('Accepted');
   await portfolio.getByLabel('Decision note').fill('Compared requested amount with the supplied ceiling.');
   await portfolioButton('Save decision').click();
   await portfolio.getByText(/Accepted · Compared requested amount/).waitFor({state:'attached'});
@@ -225,15 +245,129 @@ try{
   assert.equal(await exchange.textContent(),'');
   assert.equal(await portfolio.getByText(report.findings[0].message,{exact:true}).count(),0);
   await addDocument('Budget','Fabrication budget');
-  await freezeRound();
+  await addDocument('Budget justification','Fabrication justification');
+  const missingScope='Reconcile the second proposal only; exact opportunity guidance has not been supplied.';
+  await freezeRound({lane:'budget',opportunity:'',scope:missingScope,checks:['calculations','compliance','consistency'],guidance:'missing',owner:'Budget administrator',nextAction:'Obtain the dated notice for the second proposal.',calculationEvidence:'independent',calculationNote:'The fictional line 4 × 100 = 400 was recomputed; no spreadsheet engine was run.'});
   await openRound();
   await exchange.getByLabel('Original registered fictional packet').setInputFiles(packetPath);
   await checkReport();
   await exchange.getByText(/belongs to another proposal or review round/).waitFor();
   assert.equal(await exchange.getByRole('button',{name:'Save verified report to this round'}).isVisible(),false);
+
+  async function addExcerpt(document,anchor,text){
+    await exchange.getByLabel('Document version').selectOption({label:document});
+    await exchange.getByLabel('Page, paragraph or sheet and cell').fill(anchor);
+    await exchange.getByLabel('Fictional excerpt',{exact:true}).fill(text);
+    await exchange.getByRole('button',{name:'Add excerpt',exact:true}).click();
+  }
+  async function downloadPacket(){
+    await exchange.getByRole('checkbox').check();
+    const [file]=await Promise.all([portfolioPage.waitForEvent('download'),exchange.getByRole('button',{name:'Register and download fictional packet'}).click()]);
+    const filePath=path.join(output,file.suggestedFilename());
+    await file.saveAs(filePath);
+    return {packet:JSON.parse(await readFile(filePath,'utf8')),path:filePath};
+  }
+  function reportHeader(packet){
+    const {reviewerRelease,proposalId,roundId,packetId,reportId,digest}=packet;
+    return {format:'juliet.findings.v2',reviewerRelease,proposalId,roundId,packetId,reportId,digest,
+      coverage:{reviewed:packet.items.map(item=>item.itemId),unreviewed:[]}};
+  }
+  async function journalEntries(){
+    return portfolioPage.evaluate(async()=>{
+      const folder=await (await navigator.storage.getDirectory()).getDirectoryHandle('Juliet Portfolio');
+      const rows=[];
+      for await(const [name,handle] of folder.entries())if(name.endsWith('.json'))rows.push(JSON.parse(await (await handle.getFile()).text()));
+      return rows;
+    });
+  }
+  await addExcerpt('Fabrication budget · v1','Budget!B7','Four units at 100 each total 400.');
+  await addExcerpt('Fabrication justification · v1','Paragraph 1','Four fabrication units are requested for 400.');
+  const missing=await downloadPacket();
+  assert.notEqual(missing.packet.proposalId,packet.proposalId);
+  assert.equal(missing.packet.reviewContext.scope,missingScope);
+  assert.equal(missing.packet.reviewContext.guidanceStatus,'missing');
+  assert.equal(missing.packet.reviewContext.opportunity,'');
+  assert.equal(missing.packet.requiredFollowups.length,2);
+  assert(missing.packet.requiredFollowups.some(g=>g.message.includes('opportunity identifier and dated edition are unknown')));
+  assert(missing.packet.requiredFollowups.some(g=>g.message.includes('Applicable opportunity guidance is missing')));
+  assert.deepEqual(missing.packet.priorFindings,[]);
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(missing.path);
+  await checkReport({...reportHeader(missing.packet),findings:[]});
+  await exchange.getByText(/Required follow-up G1 is missing from the report/).waitFor();
+  assert.equal(await exchange.getByRole('button',{name:'Save verified report to this round'}).isVisible(),false);
+  const missingReport={...reportHeader(missing.packet),findings:missing.packet.requiredFollowups.map(g=>({
+    type:g.type,message:g.message,evidence:[],guidance:[],gapIds:[g.id],priorFindingId:null,
+    owner:'Budget administrator',nextAction:g.nextAction,calculation:''
+  }))};
+  await checkReport(missingReport);
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).click();
+  await portfolio.getByText('Report '+missingReport.reportId,{exact:true}).waitFor({state:'attached'});
+  await portfolioButton('Close portfolio').click();
+  await portfolioButton('Open portfolio folder').click();
+  await portfolioButton('Open '+second).click();
+  await openRound();
+  assert.match(await exchange.textContent(),new RegExp(missingScope));
+  assert.equal((await exchange.textContent()).includes(packet.reviewContext.scope),false);
+  await portfolio.getByText('Report '+missingReport.reportId,{exact:true}).click();
+  for(const finding of missingReport.findings)await portfolio.getByText(finding.message,{exact:true}).waitFor();
+  const savedMissing=(await journalEntries()).find(event=>event.action==='report' && event.data.reportId===missingReport.reportId);
+  assert.equal(savedMissing.proposalId,missing.packet.proposalId);
+  assert.deepEqual(savedMissing.data.requiredFollowups,missing.packet.requiredFollowups);
+  assert.deepEqual(savedMissing.data.findings.map(f=>({message:f.message,gapIds:f.gapIds,owner:f.owner,nextAction:f.nextAction})),missingReport.findings.map(f=>({message:f.message,gapIds:f.gapIds,owner:f.owner,nextAction:f.nextAction})));
+
+  // A subsequent review of the first proposal carries its own unresolved issue,
+  // preserves identity and uses the revised document; the other case's gaps stay out.
+  await portfolioButton('Open '+first).click();
+  assert.equal(await portfolio.getByText(missingReport.findings[0].message,{exact:true}).count(),0);
+  const budgetCard=portfolio.locator('article').filter({has:portfolioPage.getByRole('heading',{name:'Fabrication budget',exact:true})});
+  await budgetCard.getByText('Versions and requirement details',{exact:true}).click();
+  await budgetCard.getByLabel('Version label').fill('Revised');
+  await budgetCard.getByRole('button',{name:'Record version',exact:true}).click();
+  await budgetCard.getByText(/Required · v2 · Revised/).waitFor();
+  await freezeRound({number:2,label:'Targeted revision',purpose:'revision',scope:'Recheck the first proposal ceiling issue against its revised budget.'});
+  await openRound(2,'Targeted revision');
+  assert.equal((await exchange.textContent()).includes(missingScope),false);
+  await addExcerpt('Fabrication budget · v2','Budget!B7','The revised request remains 1200.');
+  await addExcerpt('Invented instructions · v1','Section 2',excerpts[1][2]);
+  const revision=await downloadPacket();
+  const findingId=report.reportId+'/F1';
+  assert.equal(revision.packet.proposalId,packet.proposalId);
+  assert.notEqual(revision.packet.roundId,packet.roundId);
+  assert.equal(revision.packet.priorFindings.length,1);
+  assert.equal(revision.packet.priorFindings[0].findingId,findingId);
+  assert.equal(revision.packet.priorFindings[0].disposition,'Accepted');
+  assert.equal(revision.packet.priorFindings[0].owner,'Review administrator');
+  assert.equal(revision.packet.requiredFollowups.length,1);
+  assert.equal(revision.packet.requiredFollowups[0].priorFindingId,findingId);
+  assert.notEqual(revision.packet.items[0].versionId,packet.items[0].versionId);
+  const revisionReport={...reportHeader(revision.packet),findings:[{
+    type:'question',message:'The ceiling issue remains open in the revised budget. A human decision is needed.',
+    evidence:[{itemId:'E1',quote:'The revised request remains 1200.'}],guidance:[{itemId:'E2',quote:excerpts[1][2]}],
+    gapIds:[revision.packet.requiredFollowups[0].id],priorFindingId:findingId,
+    owner:'Review administrator',nextAction:'Correct the request or supply the applicable ceiling.',calculation:''
+  }]};
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(revision.path);
+  await checkReport(revisionReport);
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).click();
+  await portfolio.getByText('Report '+revisionReport.reportId,{exact:true}).waitFor({state:'attached'});
+  let journal=await journalEntries();
+  const savedRevision=journal.find(event=>event.action==='report' && event.data.reportId===revisionReport.reportId);
+  assert.equal(savedRevision.data.findings[0].id,findingId);
+  assert.equal(savedRevision.data.findings[0].priorFindingId,findingId);
+  assert.equal(savedRevision.proposalId,packet.proposalId);
+  // Reimporting the unchanged response is idempotent and never creates a human decision.
+  await openRound(2,'Targeted revision');
+  await exchange.getByLabel('Original registered fictional packet').setInputFiles(revision.path);
+  await checkReport(revisionReport);
+  await exchange.getByRole('button',{name:'Save verified report to this round'}).click();
+  await exchange.getByText('Report recorded. Review each finding and record your decision in the round history.',{exact:true}).waitFor();
+  journal=await journalEntries();
+  assert.equal(journal.filter(event=>event.action==='report' && event.data.reportId===revisionReport.reportId).length,1);
+  assert.equal(journal.filter(event=>event.action==='review').length,1);
+  assert.equal(journal.filter(event=>event.action==='details').length,0);
   assert.deepEqual(portfolioRequests,[]);
   await portfolioContext.close();
-  console.log('Two-proposal offline preparation, packet, findings, disposition and isolation passed');
+  console.log('Two-proposal offline preparation, scoped packets, required guidance gaps, revision carryforward, idempotent findings and isolation passed');
   for(const ext of ['pdf','docx']){
     const context=await browser.newContext({viewport:ext==='docx'?{width:390,height:844}:{width:1280,height:900},hasTouch:ext==='docx'});
     const page=await context.newPage();
