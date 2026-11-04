@@ -5,6 +5,10 @@ from types import SimpleNamespace
 from proposal_review.case import Case, candidate_terms, normalize
 from proposal_review.office import OfficeFile, Blocked
 from proposal_review.lynn import inspect_budget
+from proposal_review.intake import inspect_source
+
+def office_intake(data,kind):
+    return json.dumps(inspect_source(data.to_py().tobytes(),kind))
 
 def office_read(data,kind):
     file = OfficeFile(data.to_py().tobytes(), kind)

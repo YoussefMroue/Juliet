@@ -5,7 +5,8 @@
   "scripts": {
     "build": "node web/build.mjs",
     "preview": "wrangler dev",
-    "check:cloudflare": "wrangler deploy --dry-run"
+    "check:cloudflare": "wrangler deploy --dry-run",
+    "test": "npm run build && node --test web/gateway.test.mjs web/intake.test.mjs web/packet.test.mjs web/packet-v3.test.mjs web/portfolio.test.mjs web/pdf.test.mjs"
   },
   "dependencies": {
     "jose": "6.2.15",
