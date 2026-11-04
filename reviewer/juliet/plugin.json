@@ -1,9 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "juliet",
-  "version": "0.2.0",
-  "description": "Review a single fictional grant proposal packet and return cited findings for Lynn.",
-  "author": { "name": "Youssef Mroue" },
+  "version": "1.0.0",
+  "description": "Review approved proposal evidence and return cited checks and findings for Lynn's local review round.",
+  "author": {
+    "name": "Youssef Mroue",
+    "email": "youssef.mroue@gmail.com"
+  },
   "extensions": {
     "com.openai": {
       "interface": {
@@ -14,7 +17,7 @@
         "logo": "./assets/juliet.svg",
         "composerIcon": "./assets/juliet.svg",
         "capabilities": [],
-        "defaultPrompt": "Review my fictional Juliet packet and return a findings report for its review round."
+        "defaultPrompt": "Review my approved Juliet packet and return the checklist and findings JSON for its proposal, round and batch."
       }
     }
   }

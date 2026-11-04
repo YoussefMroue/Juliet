@@ -1,5 +1,5 @@
 // Round metadata is local, user-supplied context, never evidence of authorization.
-export const REVIEW_OPTIONS = {
+const LEGACY_OPTIONS = {
   lane: [['package','Full proposal package'],['budget','Budget and justification'],['focused','Focused question or drafting']],
   purpose: [['initial','Initial review'],['revision','Review revisions'],['drafting','Prepare or draft'],['policy','Resolve a policy question']],
   guidanceStatus: [['missing','Missing or not verified'],['provided','Applicable guidance supplied'],['conflicting','Conflicting instructions']],
@@ -7,7 +7,14 @@ export const REVIEW_OPTIONS = {
   narrativePermission: [['not_requested','Not requested'],['comments_only','Comments only'],['suggested_edits','Suggested wording permitted']],
   handling: [['fictional_only','Fictional rehearsal only']]
 };
-export const CHECKS = [['completeness','Completeness'],['calculations','Calculations'],['compliance','Compliance with supplied guidance'],['consistency','Cross-document consistency'],['narrative','Narrative quality']];
+export const REVIEW_OPTIONS = {
+  ...LEGACY_OPTIONS,
+  lane: [['package','Full proposal package'],['budget','Budget and justification'],['focused','Focused review']],
+  purpose: [['initial','Initial review'],['revision','Review revisions'],['policy','Resolve a policy question']],
+  narrativePermission: [['not_requested','Not requested'],['comments_only','Sections, figures and consistency only']],
+  handling: [['real_proposal','Real proposal — deliberate approved handoff'],['fictional_only','Fictional rehearsal']]
+};
+export const CHECKS = [['completeness','Completeness'],['calculations','Calculations'],['compliance','Compliance with supplied guidance'],['consistency','Cross-document consistency'],['narrative','Narrative sections and consistency']];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 export const FINDING_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/F[1-9][0-9]{0,2}$/;
 export const GUIDANCE = ['Opportunity guidance','Institutional guidance'];
@@ -19,9 +26,9 @@ function text(value, max, required = false) {
   check(typeof value === 'string' && value.length <= max && (!required || value.trim()), 'Review context contains missing or oversized text.');
   return value.trim();
 }
-export function normalizeReviewContext(value) {
+export function normalizeReviewContext(value, {reviewOnly = false} = {}) {
   exact(value,['lane','purpose','opportunity','scope','requestedChecks','guidanceStatus','owner','nextAction','calculationEvidence','calculationNote','narrativePermission','handling']);
-  for (const [key,options] of Object.entries(REVIEW_OPTIONS)) check(options.some(([v]) => value[key] === v), 'Choose a valid review ' + key + '.');
+  for (const [key,options] of Object.entries(reviewOnly ? REVIEW_OPTIONS : LEGACY_OPTIONS)) check(options.some(([v]) => value[key] === v) || (!reviewOnly && key==='handling' && value[key]==='real_proposal'), 'Choose a valid review ' + key + '.');
   check(Array.isArray(value.requestedChecks) && value.requestedChecks.length > 0 && new Set(value.requestedChecks).size === value.requestedChecks.length && value.requestedChecks.every(c => CHECKS.some(([id])=>id===c)), 'Select the checks requested for this round.');
   check(!value.requestedChecks.includes('narrative') || value.narrativePermission !== 'not_requested', 'Specify the permitted narrative feedback before requesting it.');
   return {lane:value.lane,purpose:value.purpose,opportunity:text(value.opportunity,180),scope:text(value.scope,1000,true),
@@ -47,8 +54,8 @@ export function normalizeFollowups(values) {
     return {id:row.id,type:row.type,documentId:row.documentId,priorFindingId:row.priorFindingId,message:text(row.message,1000,true),nextAction:text(row.nextAction,300,true)};
   });
 }
-export function requiredFollowups(context,documents,items,priorFindings=[]) {
-  const c=normalizeReviewContext(context), rows=[];
+export function requiredFollowups(context,documents,items,priorFindings=[],{reviewOnly=false}={}) {
+  const c=normalizeReviewContext(context,{reviewOnly}), rows=[];
   const add=(type,message,nextAction,documentId=null,priorFindingId=null)=>rows.push({id:'G'+(rows.length+1),type,documentId,priorFindingId,message,nextAction});
   const checks=c.requestedChecks, hasCategory=category=>items.some(i=>i.category===category);
   if (c.guidanceStatus==='conflicting') add('question','The round records conflicting instructions. Affected compliance determinations remain unresolved.','Cite both sources, identify the affected check and request a human resolution.');
@@ -65,7 +72,7 @@ export function requiredFollowups(context,documents,items,priorFindings=[]) {
     if(!hasCategory(category) && !rows.some(r=>documents.find(d=>d.id===r.documentId)?.category===category)) add('coverage_gap',`${category} evidence is absent from this budget review.`,'Supply a matched active version or keep this reconciliation unchecked.');
   }
   if(c.lane==='package' && checks.includes('completeness') && !hasCategory('Validation report') && !rows.some(r=>documents.find(d=>d.id===r.documentId)?.category==='Validation report')) add('coverage_gap','No validation report for the tested package is supplied. Package validation remains unchecked.','Provide validation output tied to the active package and distinguish errors from warnings.');
-  if(checks.includes('calculations') && ['not_checked','saved_values','formulas'].includes(c.calculationEvidence)) add('coverage_gap','Independent calculation and Excel recalculation are not recorded for this round. Saved values or formula inspection do not establish recalculated results.','Recompute supported inputs; record scope, dependencies and any separate Excel run without refreshing external links automatically.');
+  if(checks.includes('calculations') && (reviewOnly ? ['not_checked','saved_values'] : ['not_checked','saved_values','formulas']).includes(c.calculationEvidence)) add('coverage_gap','Independent calculation and Excel recalculation are not recorded for this round. Saved values or formula inspection do not establish recalculated results.','Recompute supported inputs; record scope, dependencies and any separate Excel run without refreshing external links automatically.');
   for(const prior of normalizePriorFindings(priorFindings)) add('question',`Prior finding ${prior.findingId} remains ${prior.disposition}: ${prior.message}`.slice(0,1000),prior.nextAction || 'Recheck the active version and return evidence for Lynn’s decision; do not close or duplicate this issue.',null,prior.findingId);
   return normalizeFollowups(rows);
 }

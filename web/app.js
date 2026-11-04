@@ -3,10 +3,14 @@ import {readPdf,redactPdf} from './pdf.js';
 import {selectTab,startSubmission,submissionRecord} from './case-ui.js';
 import {mountPortfolio} from './portfolio.js';
 import {showRoundExchange} from './packet-ui.js';
+import {mountIntake} from './intake.js';
 const $=id=>document.getElementById(id);
 const status=message=>{$('status').textContent=message;};
 let py,kit,inputs,output;
 let portfolioCase=null, generation=0, ready=false;
+let intakeView=null;
+const preparedEvidence=new Map();
+function closeIntake(){intakeView?.close();intakeView=null;$('document-intake').hidden=true;}
 const previewUrls=[];
 const lynnChecks=['cayuseChecked','guidanceGathered','salariesVerified','personnelCovered'];
 const projectLocation=/(?:^|, )Project(?: \((?:hidden|veryHidden)\))?!/i;
@@ -121,6 +125,7 @@ function closePreparation(){
 $('reset').onclick=closePreparation;
 const portfolio=mountPortfolio($('portfolio'),{
   onSelectProposal(proposal){
+    closeIntake();
     closePreparation();
     portfolioCase=Object.freeze({...proposal});
     $('sponsor').value=proposal.sponsor;
@@ -133,8 +138,27 @@ const portfolio=mountPortfolio($('portfolio'),{
     selectTab($('caseTab'));
     $('caseTab').focus();
   },
-  onContextChange(){if(portfolioCase)closePreparation();},
-  onSelectRound(context){showRoundExchange($('round-exchange'),context);}
+  onContextChange(){closeIntake();if(portfolioCase)closePreparation();},
+  onPrepareDocument(context){
+    closeIntake();
+    $('document-intake').hidden=false;
+    intakeView=mountIntake($('document-intake'),{
+      context,
+      readOffice:(bytes,kind)=>{if(!ready)throw Error('Wait for the local inspection tools to finish loading.');return call('office_intake',bytes,kind);},
+      readPdf,
+      onEvidence(result){
+        const key=JSON.stringify([result.proposalId,result.documentId,result.versionId]);
+        preparedEvidence.set(key,result.items.map(item=>({documentId:result.documentId,versionId:result.versionId,anchor:item.anchor,text:item.text,
+          provenance:{method:item.method,note:(item.method==='manual'?'Human-supplied local inspection; ':'Locally extracted from the registered source; ')+result.coverage+'. Review the source limitations recorded with this version.'}})));
+      }
+    });
+    $('document-intake').scrollIntoView({block:'start'});
+  },
+  onSelectRound(context){
+    closeIntake();
+    const evidence=context?context.documents.flatMap(doc=>preparedEvidence.get(JSON.stringify([context.proposalId,doc.id,doc.version?.id]))??[]):[];
+    showRoundExchange($('round-exchange'),context,{evidence});
+  }
 });
 $('portfolioPanel').addEventListener('leaveportfolio',()=>portfolio.closeRound());
 $('inputs').onsubmit=task($('pick'),async(current)=>{

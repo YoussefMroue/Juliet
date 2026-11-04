@@ -1,42 +1,36 @@
 # Review method
 
-This is reusable workflow knowledge. The packet supplies the proposal facts and governing sources. Historical rates, cost limits, attachment lists and prior recommendations must not become defaults.
+Use the frozen packet for proposal facts, applicable sources and requested scope. No historical rate, limit, attachment list, institutional practice or prior recommendation is a default for another proposal.
 
-## Select the work and output
+## Output for Lynn
 
-| Lane or purpose | Review and return |
-| --- | --- |
-| Budget | Start with the opportunity, workbook excerpts and matching justification. Return a short comment list of necessary corrections, each with a location, evidence and next action. Include missing inputs and unresolved guidance even when the math reconciles. Keep checked items in the coverage trace; do not pad the list with optional speculation. |
-| Full package | Start with the applicable opportunity and the frozen inventory. Return a checklist covering each required or conditional item, the supplied version and evidence, checked scope, omissions and unchecked validations. A document label or recorded version is not proof that its content or application validation passed. |
-| Drafting | Follow the requested deliverable and supplied constraints. Label assumptions and suggested wording. Preserve scientific intent. No routine scientific rewrite permission is assumed. |
-| Revision | Use current frozen versions and the prior findings. A minor revision can receive a targeted recheck within the stated scope. When changes affect totals, eligibility, another document or package validation, identify the broader recheck needed. Earlier files are history, not current evidence. |
-| Policy question | Identify the rule, source edition, applicability and exact passage. Keep institutional guidance, sponsor guidance and operating preferences distinct. Record missing authority or contradictory text and request the designated human decision. No universal precedence hierarchy is assumed. |
+Budget reviews return necessary corrections and actionable dependencies: location, supported discrepancy, correction or missing input, owner when supplied and next action. Full-package reviews return the assigned checklist with source/version/location, outcome, related finding and next action. Focused reviews address the frozen question. Routine narrative work checks required sections and matching figures or effort, without wording or scientific suggestions.
 
-For a full-package checklist, use rows with component/check, source/version/location, result (`checked within scope`, `missing`, `unchecked` or `decision needed`) and next action. No row may imply full compliance from an excerpt. For budget comments, place reproducible errors and actionable dependencies first and separate any requested editorial suggestions.
+Checklist outcomes are **checked within scope**, **missing**, **unchecked**, **decision needed** and **not applicable**. Checked means the stated check was performed, and can link to an error; it does not mean the whole document passed. Not applicable requires a supplied basis. Unknown applicability is decision needed. Missing or conflicting authority cannot be treated as a passing compliance check. When evidence is withheld, unreadable or omitted, explain the affected checks and keep their coverage incomplete.
+
+Several checklist rows can describe one underlying issue. For example, a missing required partner letter and a validation error about that same letter share one finding. Extra requirements discovered during review are proposals for Lynn to incorporate into a future round; do not silently add or replace frozen check IDs.
 
 ## Match before comparing
 
-Match by proposal ID, round, budget period, role or organization, cost category and basis. Compare annual amounts to the same annual period; independently sum cumulative figures when all inputs are supplied. The same number appearing in another year or unrelated cost line is not corroboration.
+Match proposal, document version, period, role or organization, cost category and basis. Compare annual figures with the same period; calculate cumulative totals only when all inputs are present. Another year's number is not corroboration. Reconcile salary basis, effort, fringe, tuition, insurance, duties, dates, subaward scope and requested resources to the extent supported. Redacted inputs are unknown.
 
-Reconcile roles, effort, appointments, duties, salary basis, requested salary, fringe, tuition and insurance only to the extent supported. Treat redacted inputs as unknown. Check for double counting and justified out-year changes. For costs and quotes, compare quantity, unit price, extensions, shipping, dates, funding source and classification. For indirect costs and subawards, use the supplied base, exclusions, effective rate and applicable threshold; do not import another case's convention.
+For costs compare quantities, unit prices, extensions, shipping, dates, funding sources and classification. For indirect costs and subawards use only the supplied base, exclusions, effective rate and applicable threshold. A discrepancy between two documents establishes disagreement, not which document is authoritative.
 
-Review narrative, personnel, facilities, subaward scope, activities, dates and budgeted resources together where the supplied evidence connects them. A precise contradiction or explicit requirement supports an objective check. Clarity, feasibility and scientific framing are judgments and remain suggestions.
+## Calculation evidence
 
-## Describe spreadsheet evidence precisely
-
-| Method | What can be said |
+| Method | Supported statement |
 | --- | --- |
-| Saved values | These values were stored in the supplied version. Formula caches may be absent or stale. |
-| Formula inspection | The cited expression and dependencies were inspected. A wrong range, override or unresolved external link may affect other outputs; establish propagation separately. |
-| Independent recomputation | State exact supported inputs, operation, covered cells or excerpts and result. Do not imply the whole workbook was recalculated. |
-| Excel run | Report only an actual supplied run record with workbook version, calculation mode, covered range, link handling and limitations. The packet's user-reported method alone is insufficient proof. |
+| Saved values | Values stored in that version; caches can be stale or absent. |
+| Formula inspection | The expression, references and included/excluded cells inspected; no execution implied. |
+| Independent arithmetic | Exact cited inputs, operation, result and covered range; no workbook-wide recalculation implied. |
+| External engine run | Only an actual supplied run record bound to the workbook version, engine/calculation mode, scope, link handling and limitations. |
 
-Never refresh an external link or execute a workbook from the packet. Unresolved links and unsupported structures remain coverage gaps. No universal rounding tolerance, escalation rate, institutional classification or refresh procedure is established.
+Never run a workbook, macro or external link. Do not invent a universal rounding tolerance. A stored value and its displayed rounded value are distinct. Unsupported formula semantics, missing dependencies and unresolved links require scoped limitations. Formula inspection by itself does not require an Excel run.
 
-## Preserve uncertainty and decisions
+## Revisions and decisions
 
-Missing or conflicting guidance belongs in both the readable output and structured findings, with an owner when supplied and a concrete next action. Continue independent arithmetic and inventory checks. A prior unsupported form or rule citation must be withdrawn or left unresolved, not replaced with a plausible citation.
+Carry prior issues with their exact stable IDs. A partial correction retains its issue and unresolved dependency. A changed source can require rechecking an earlier verified issue; the old decision remains history. Use the active versions frozen in this round. Minor changes can receive the confirmed targeted scope; changes to personnel formulas may affect fringe, indirect costs, totals, justification, forms and validation. Identify supported dependencies without silently widening the completed coverage.
 
-A new version or a report of a correction does not establish verification. Compare current evidence and describe what remains to be checked. Carry a prior issue by its exact stable ID; do not relabel it as a new issue. Local decisions may distinguish accepted, declined, deferred, corrected and verified. These are record meanings, not evidence of institutional approval. Legacy `Resolved` is not automatically `Verified`.
+Respect Lynn's scoped holds. A whole-review hold prevents a new packet from being sealed locally; if an inconsistent packet purports to authorize held work, return the limitation and ask for a corrected round. Do not clear a hold. Missing authority is a question for the named human owner, not an automatic institution-wide stop or approval.
 
-Lynn controls findings, status, routing and readiness. The local queue is separate from institutional systems. No integration, message, submission, approval or automatic status change is part of this review. Real proposal handling and access require separate institutional authorization; this release accepts fictional packets only.
+Corrected files must be inspected by Lynn before routing closeout. An imported report does not establish that she saw them. Local disposition labels describe records, not institutional authority; legacy Resolved does not mean Verified. No messages, approvals, status changes or submission occur through the plugin.

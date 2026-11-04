@@ -1,54 +1,83 @@
-# Findings file for release 0.2.0
+# Findings file for release 1.0.0
 
-Use this format only for `juliet.packet.v2` with reviewerRelease `0.2.0`. For a v1 packet use [the legacy format](return-format-v1.md) unchanged.
-
-Return one JSON code block for Lynn to save as a UTF-8 `.json` file and import locally. Use exactly these top-level keys and copy all identity values and the digest from the packet:
+Use this contract for `juliet.packet.v3` with reviewerRelease `1.0.0`. Preserve older packet identities using [v1](return-format-v1.md) or [v2](return-format-v2.md). Return one JSON code block, with exactly the following top-level keys. Copy identity values and both digests from the packet; numbers remain numbers.
 
 ```json
 {
-  "format": "juliet.findings.v2",
-  "reviewerRelease": "0.2.0",
-  "proposalId": "<copy from packet>",
-  "roundId": "<copy from packet>",
-  "packetId": "<copy from packet>",
-  "reportId": "<copy from packet>",
-  "digest": "<copy from packet>",
+  "format": "juliet.findings.v3",
+  "reviewerRelease": "1.0.0",
+  "proposalId": "<copy>",
+  "roundId": "<copy>",
+  "packetId": "<copy>",
+  "reportId": "<copy>",
+  "digest": "<copy>",
+  "packetSetId": "<copy>",
+  "batchId": "<copy>",
+  "batchIndex": 1,
+  "batchCount": 1,
+  "manifestDigest": "<copy>",
   "coverage": {"reviewed": [], "unreviewed": []},
-  "findings": []
+  "findings": [],
+  "checkResults": []
 }
 ```
 
-Put every supplied item ID in exactly one coverage list. `reviewed` means the excerpt was considered; it does not certify the whole document or every requested check. Unreadable or withheld excerpts require a coverage_gap finding. Missing documents have no item ID: never invent an excerpt or quotation for them.
+Every item ID occurs exactly once across coverage.reviewed and coverage.unreviewed. Reviewed means the selected evidence was considered, not that every requested check passed. An unreviewed item requires a coverage_gap finding. Missing files have no item ID; never invent a quotation.
 
-Return at most 120 findings. Each finding has exactly these fields:
+## Findings
+
+Return at most 120 findings. Each has exactly these fields:
 
 ```json
 {
   "type": "coverage_gap",
-  "message": "The governing opportunity was not supplied, so the affected compliance checks remain unchecked.",
+  "message": "The applicable indirect-cost agreement was not supplied; the base remains unchecked.",
   "evidence": [],
   "guidance": [],
-  "gapIds": ["<copy the applicable G ID>"],
+  "gapIds": [],
   "priorFindingId": null,
-  "owner": "<supplied responsible role, or empty string if unknown>",
-  "nextAction": "Supply the applicable opportunity edition and amendments for the next review.",
+  "owner": "",
+  "nextAction": "Supply the applicable dated agreement and base exclusions.",
   "calculation": ""
 }
 ```
 
 | Field | Contract |
 | --- | --- |
-| type | `objective_error`, `question`, `suggestion` or `coverage_gap`. |
-| message | 1–1,000 characters; name the issue, affected check and supported impact. |
-| evidence, guidance | Arrays with at most six citations each. Each citation contains exactly `itemId` and `quote`. Copy 1–300 characters exactly from a reviewed item's text. Guidance must come from `Opportunity guidance` or `Institutional guidance` items. |
-| gapIds | Unique IDs copied from requiredFollowups, or an empty array for an additional finding. Never invent a gap ID. |
-| priorFindingId | `null` for a new issue; otherwise copy the exact stable findingId from priorFindings. Link a prior issue only once and include its corresponding requiredFollowups ID. |
-| owner | Supplied responsible role, at most 100 characters; empty string when unknown. Do not invent a person or assign institutional authority. |
-| nextAction | 1–300 characters. State the requested correction, missing input or human decision. |
-| calculation | Empty string unless numerical reasoning is needed; otherwise at most 500 characters showing cited inputs, operation, result, reported value and difference. This is a reasoning explanation, not evidence of an Excel run. |
+| type | objective_error, question, coverage_gap or suggestion. Suggestions are cited judgment-based process observations, never drafting, scientific or wording improvements. |
+| message | 1–1,000 characters; supported issue, affected check and impact. |
+| evidence, guidance | Up to six citations each. Each citation has exactly itemId and quote. Quote 1–300 characters copied exactly from a reviewed item's text. Guidance must be an Opportunity guidance or Institutional guidance item. |
+| gapIds | Unique IDs copied from this batch's requiredFollowups, or [] for an additional issue. |
+| priorFindingId | null for a new issue; otherwise the exact prior findingId. Carry each prior issue once, linked to its corresponding gap ID. |
+| owner | Supplied role, up to 100 characters, or empty string when unknown. |
+| nextAction | 1–300 characters; correction, missing input or human decision. |
+| calculation | Empty string or up to 500 characters explaining cited inputs, operation, result and discrepancy. Never evidence of workbook execution. |
 
-Every requiredFollowups entry must be represented in findings. Ordinary followups require the specified `question` or `coverage_gap` type. A followup with a priorFindingId can use any justified finding type, but its G ID and priorFindingId must occur together. Combine related gaps only when the same finding type and next action accurately describe them. Do not combine distinct prior issues. Empty findings are appropriate only when there are no mandatory followups, no unreviewed items and no additional supported findings.
+Every requiredFollowups entry must occur in findings. An ordinary gap requires its specified type. A gap linked to a priorFindingId may use any justified type but must carry both that prior ID and gap ID. Combine related gaps when their type and next action match: one absent opportunity can carry several G IDs in one coverage_gap finding. Keep distinct documents or different corrective actions separate; do not combine distinct prior findings. Preserve remaining dependencies after partial correction.
 
-An objective error needs proposal evidence and either applicable governing guidance, two distinct proposal locations or an explicit arithmetic calculation. The arithmetic route is only for reproducible mathematics using the cited inputs; it does not authorize an unsupported policy conclusion. When only conflicting documents establish a mismatch, say which values disagree without deciding which is authoritative. A suggestion needs proposal evidence and must be labeled as judgment. Questions and coverage gaps can have no citations when the needed evidence is absent.
+An objective error needs proposal evidence and applicable governing guidance, two distinct proposal locations, or a reproducible arithmetic calculation. The arithmetic alternative does not support a policy conclusion. Conflicting documents establish a mismatch, not which is right. A suggestion requires proposal evidence and explicit judgment. Questions and coverage gaps may lack citations when the evidence is absent.
 
-The local importer assigns new stable finding IDs and preserves linked prior IDs. Do not add `id`, verification, disposition, status, submitted, approval or other fields to the returned JSON. Import checks identity and exact quotations; Lynn still checks whether the quotation supports the reasoning and whether the action is appropriate.
+## Checklist results
+
+Return every assignedCheckIds entry exactly once; do not return checks assigned to another batch. Each result has exactly:
+
+```json
+{
+  "checkId": "<copy assigned check ID>",
+  "status": "unchecked",
+  "message": "The base could not be checked without the applicable agreement.",
+  "evidence": [],
+  "guidance": [],
+  "findingRefs": ["F1"]
+}
+```
+
+- status: checked, missing, unchecked, decision_needed or not_applicable. Use the readable labels Checked within scope, Missing, Unchecked, Decision needed and Not applicable in the summary.
+- message: 1–1,000 characters describing the scope actually checked and limitations.
+- evidence/guidance: exact citations in the same shape as findings. Cite only this check's declared documentIds/sourceDocumentIds, respectively.
+- findingRefs: unique report-local references F1, F2, etc., meaning positions in the findings array, up to 120. These are not item IDs or stable historical IDs. Multiple rows may reference the same finding. For a prior issue, its finding still occupies an F position in this report.
+- checked requires known applicable scope, cited proposal evidence for every document dependency, and cited guidance for every source dependency. Source-dependent checks cannot be checked while guidance is missing/conflicting. Checked can link to an error: it means the examination occurred, not a clean pass.
+- missing, unchecked and decision_needed each require at least one finding reference explaining the limitation or decision. A held check is unchecked. Unknown applicability remains decision_needed.
+- not_applicable requires the frozen not_applicable decision and nonempty basis; do not infer it independently.
+
+The importer assigns stable finding IDs. Do not add id, verification, disposition, status-change, approval or submission fields. Local validation checks identity and quotations, not whether the reasoning is sound. Lynn decides findings and closeout after inspecting the active files.

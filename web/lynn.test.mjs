@@ -73,10 +73,10 @@ try{
     await page.locator('#justification').setInputFiles(path.join(fixture,'input.docx'));
     await page.getByText('Inspect files',{exact:true}).click();
     await page.waitForFunction(()=>!document.querySelector('#pick').disabled);
-    assert(await page.getByText('Rehearsal only.', {exact:true}).isVisible());
+    assert(await page.locator('#lynnPilotNotice').isVisible());
     const checklist=page.locator('#useLynnWorkflow');
     assert.match(await checklist.getAttribute('aria-describedby'), /lynnPilotNotice/);
-    assert.match(await page.locator('#lynnPilotNotice').innerText(), /fictional files.*institution authorizes.*matching justification/);
+    assert.match(await page.locator('#lynnPilotNotice').innerText(), /permitted local environment and data.*does not establish institutional authorization or verify the workbook calculations/);
     await checklist.check();
     assert.match(await page.locator('#lynnSheets').textContent(),/Project and TU Year One found/);
     assert.match(await page.locator('#lynnOriginal').textContent(),/Project!F7.*immune response pilot/);
